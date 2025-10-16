@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>python在线运行</title>
+
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/codemirror/5.65.5/codemirror.min.css">
+    <script src="https://cdn.bootcdn.net/ajax/libs/codemirror/5.65.5/codemirror.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/codemirror/5.65.5/mode/python/python.min.js"></script>
+
+    <style>
+        /* 关键改动: @font-face 规则已更新为您服务器的精确路径 */
+        @font-face {
+            font-family: 'JetBrains Mono';
+            /* 使用 / 开头的绝对路径，确保从域名根目录开始查找 */
+            src: url('fonts/webfonts/JetBrainsMono-Regular.woff2') format('woff2');
+            font-weight: 400; /* normal */
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'JetBrains Mono';
+            src: url('fonts/webfonts/JetBrainsMono-Italic.woff2') format('woff2');
+            font-weight: 400;
+            font-style: italic;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'JetBrains Mono';
+            src: url('fonts/webfonts/JetBrainsMono-Bold.woff2') format('woff2');
+            font-weight: 700; /* bold */
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'JetBrains Mono';
+            src: url('fonts/webfonts/JetBrainsMono-ExtraBold.woff2') format('woff2');
+            font-weight: 800; /* ExtraBold */
+            font-style: normal;
+            font-display: swap;
+        }
+
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0; background-color: #f7f7f7; overflow: hidden;
+        }
+        #loader-overlay { display: none; }
+        #app-container { display: block; padding: 20px; }
+        body.loading #loader-overlay {
+            display: flex; flex-direction: column; position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: rgba(255, 255, 255, 0.8);
+            justify-content: center; align-items: center; z-index: 9999;
+        }
+        body.loading #app-container { display: none; }
+        .loader {
+            border: 5px solid #f3f3f3; border-top: 5px solid #3498db;
+            border-radius: 50%; width: 50px; height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #loading-text { margin-top: 15px; font-size: 16px; color: #333; }
+        .container {
+            max-width: 800px; margin: 0 auto; background: #fff;
+            padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h2 { text-align: center; color: #333; font-size: 24px; }
+        
+        .CodeMirror {
+            border: 1px solid #ddd; border-radius: 4px; height: auto;
+            font-size: 16px;
+            font-family: 'JetBrains Mono', monospace;
+            line-height: 1.6;
+        }
+
+        #run-button {
+            display: block; width: 100px; padding: 10px; margin: 15px 0;
+            background-color: #007bff; color: white; border: none;
+            border-radius: 4px; cursor: pointer; font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        #run-button:hover:not(:disabled) { background-color: #0056b3; }
+        #run-button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #output {
+            border: 1px solid #ddd; background: #f9f9f9; padding: 10px; margin-top: 10px;
+            white-space: pre-wrap; word-wrap: break-word; min-height: 50px;
+            border-radius: 4px; font-size: 16px;
+        }
+        @media (max-width: 768px) {
+            #app-container { padding: 10px; }
+            .container { padding: 15px; }
+            h2 { font-size: 20px; }
+        }
+    </style>
+</head>
+<body class="loading">
+
+    <div id="loader-overlay">
+        <div class="loader"></div>
+        <p id="loading-text">正在加载，请稍候…</p>
+    </div>
+
+    <div id="app-container">
+        <div class="container">
+            <h2>python在线运行</h2>
+            <textarea id="code-editor"></textarea>
+            <button id="run-button" onclick="runCode()">运行</button>
+            <h3>输出:</h3>
+            <pre id="output"></pre>
+        </div>
+    </div>
+
+    <script src="templates.js"></script>
+    <script>
+        // JavaScript 逻辑部分保持不变
+        const urlParams = new URLSearchParams(window.location.search);
+        let initialCode = '';
+        const templateName = urlParams.get('tpl');
+        if (templateName && typeof codeTemplates !== 'undefined' && codeTemplates[templateName]) {
+            initialCode = codeTemplates[templateName];
+        } else if (urlParams.has('code')) {
+            initialCode = urlParams.get('code');
+        } else {
+            initialCode = 'print("欢迎使用在线 Python 运行环境！")';
+        }
+        document.getElementById('code-editor').textContent = initialCode;
+        const loadingText = document.getElementById('loading-text');
+        const outputElement = document.getElementById('output');
+        const runButton = document.getElementById('run-button');
+        let editor, pyodide;
+        let isEdge = false;
+        if (navigator.userAgentData && Array.isArray(navigator.userAgentData.brands)) {
+            isEdge = navigator.userAgentData.brands.some(b => b.brand === "Microsoft Edge");
+        } else {
+            const ua = navigator.userAgent;
+            isEdge = /Edg\//.test(ua) || /Edge\//.test(ua);
+        }
+        if (isEdge) {
+            loadingText.textContent = 'Edge 浏览器加载可能较慢，请耐心等待…';
+        }
+        async function main() {
+            try {
+                pyodide = await loadPyodide();
+                outputElement.textContent = "请点击运行运行代码";
+            } catch (err) {
+                outputElement.textContent = `❌ Python 环境加载失败: ${err}`;
+                console.error(err);
+            } finally {
+                document.body.classList.remove('loading');
+                document.body.style.overflow = 'auto';
+                editor = CodeMirror.fromTextArea(
+                    document.getElementById('code-editor'),
+                    { mode: 'python', lineNumbers: true, theme: 'default', indentUnit: 4 }
+                );
+            }
+        }
+        main();
+        async function runCode() {
+            if (!pyodide || !editor) return;
+            const code = editor.getValue();
+            outputElement.textContent = "🚀 正在执行...";
+            runButton.disabled = true;
+            try {
+                pyodide.runPython(`
+                    import sys, io
+                    sys.stdout = io.StringIO()
+                    sys.stderr = io.StringIO()
+                `);
+                await pyodide.runPythonAsync(code);
+                const stdout = pyodide.runPython("sys.stdout.getvalue()");
+                const stderr = pyodide.runPython("sys.stderr.getvalue()");
+                outputElement.textContent = (stdout + stderr).trim() || "(无输出)";
+            } catch (e) {
+                outputElement.textContent = e.toString();
+            } finally {
+                runButton.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
