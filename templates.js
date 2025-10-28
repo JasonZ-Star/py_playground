@@ -5,15 +5,16 @@
 // 注意: 多行代码需要使用 \n 来表示换行
 // ==================================================
 
+// ==================================================
+//               代码模板库
+// ==================================================
 const codeTemplates = {
     'hello': 'print("你好，世界！")',
-    
-    'loop': 'for i in range(5):\n    print(f"这是第 {i+1} 次循环")',
+    'loop': 'for i in range(10):\n    print(f"这是第 {i+1} 次循环")',
     
     'func': 'def greet(name):\n    return f"你好, {name}!"\n\nprint(greet("Gemini"))',
     
-    'info': '# 这是一个演示模板\n# 你可以分享 http://playg.jasonz.top/?tpl=info 来加载它\nimport sys\n\nprint(f"Python 版本: {sys.version}")'
-
-    // 以后要添加新模板，只需要在这里加一行即可
-    // 'new_tpl': 'print("这是一个新的模板！")'
+    'info': '# 这是一个演示模板\nimport sys\n\nprint(f"Python 版本: {sys.version}")',
+    
+    'numpy_test': '# 测试Numpy代码提示\nimport numpy as np\n\na = np.array([1, 2, 3])\nprint(a)\n\n# 在下面空行输入 a. 然后等待提示'
 };

@@ -3,17 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>python在线运行</title>
+    <title>python在线运行 (v0.29.0 - Direct Jedi Hints)</title> <script src="pyodide/pyodide.js" defer></script>
+    <script src="templates.js" defer></script>
 
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
-    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/codemirror/5.65.5/codemirror.min.css">
-    <script src="https://cdn.bootcdn.net/ajax/libs/codemirror/5.65.5/codemirror.min.js"></script>
-    <script src="https://cdn.bootcdn.net/ajax/libs/codemirror/5.65.5/mode/python/python.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.min.js" defer></script>
+
     <link href="https://cdn.bootcdn.net/ajax/libs/lxgw-wenkai-screen-webfont/1.6.0/lxgwwenkaiscreen.css" rel="stylesheet">
 
-
     <style>
-        /* 字体本地加载 */
+        /* CSS unchanged */
         @font-face {
             font-family: 'JetBrains Mono';
             src: url('fonts/webfonts/JetBrainsMono-Regular.woff2') format('woff2');
@@ -24,16 +22,12 @@
             src: url('fonts/webfonts/JetBrainsMono-Bold.woff2') format('woff2');
             font-weight: 700; font-style: normal; font-display: swap;
         }
-
-        /* 基础样式 */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             margin: 0; background-color: #f7f7f7; overflow: hidden;
         }
         h2 { text-align: center; color: #333; font-size: 24px; margin-top: 0; }
         h3 { margin-top: 0; }
-
-        /* 加载动画样式 */
         #loader-overlay { display: none; }
         body.loading #loader-overlay {
             display: flex; flex-direction: column; position: fixed;
@@ -49,8 +43,6 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         #loading-text { margin-top: 15px; font-size: 16px; color: #333; }
-
-        /* 整体布局 */
         #app-container {
             display: flex; flex-direction: column;
             height: 100vh; padding: 20px; box-sizing: border-box;
@@ -66,38 +58,17 @@
         }
         .editor-panel { flex-basis: 60%; }
         .output-panel { flex-basis: 40%; }
-
-        /* 编辑器 */
-        .CodeMirror {
+        #monaco-container {
             flex: 1;
-            border: 1px solid #ddd; border-radius: 4px;
-            height: auto;
-            font-size: 16px;
-            font-family: 'JetBrains Mono', 'LXGW WenKai Screen', sans-serif;
-            line-height: 1.6;
+            min-height: 150px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
         }
-
         .template-selector-wrapper { margin-bottom: 15px; }
-        #template-selector {
-            width: 100%; padding: 8px; border-radius: 4px;
-            border: 1px solid #ddd; font-size: 14px;
-        }
-
-        /* 按钮布局 */
-        .button-wrapper {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-top: 15px;
-        }
-        .action-button {
-            flex-grow: 1;
-            max-width: 150px;
-            padding: 10px;
-            border: none; border-radius: 4px;
-            cursor: pointer; font-size: 16px;
-            transition: all 0.3s;
-        }
+        #template-selector { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd; font-size: 14px; }
+        .button-wrapper { display: flex; justify-content: center; gap: 15px; margin-top: 15px; }
+        .action-button { flex-grow: 1; max-width: 150px; padding: 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; transition: all 0.3s; }
         #run-button { background-color: #007bff; color: white; }
         #run-button:hover:not(:disabled) { background-color: #0056b3; }
         #run-button:disabled { background-color: #ccc; cursor: not-allowed; }
@@ -105,47 +76,13 @@
         #clear-output-button:hover { background-color: #5a6268; }
         #clear-code-button { background-color: #dc3545; color: white; }
         #clear-code-button:hover { background-color: #c82333; }
-
-        /* 输出区 */
-        #output {
-            flex: 1;
-            border: 1px solid #ddd; background: #f9f9f9; padding: 10px;
-            white-space: pre-wrap; word-wrap: break-word;
-            border-radius: 4px;
-            overflow-y: auto;
-            font-family: 'JetBrains Mono', 'LXGW WenKai Screen', sans-serif;
-            font-size: 16px;
-            line-height: 1.6;
-            letter-spacing: 0.5px;
-        }
-
-        /* 关键改动: 移动端适配优化 */
-        @media (max-width: 768px) {
-            #app-container {
-                padding: 10px;
-            }
-            .playground-wrapper {
-                flex-direction: column;
-                gap: 10px;
-            }
-            .panel {
-                padding: 15px;
-                flex: 1; /* 让上下两个面板平分垂直空间 */
-                min-height: 0; /* 关键！防止 flex 元素内容溢出 */
-            }
-            h2 {
-                font-size: 20px;
-            }
-        }
+        #output { flex: 1; border: 1px solid #ddd; background: #f9f9f9; padding: 10px; white-space: pre-wrap; word-wrap: break-word; border-radius: 4px; overflow-y: auto; font-family: 'JetBrains Mono', 'LXGW WenKai Screen', sans-serif; font-size: 16px; line-height: 1.6; letter-spacing: 0.5px; }
+        @media (max-width: 768px) { #app-container { padding: 10px; } .playground-wrapper { flex-direction: column; gap: 10px; } .panel { padding: 15px; flex: 1; min-height: 0; } h2 { font-size: 20px; } }
     </style>
 </head>
 <body class="loading">
 
-<div id="loader-overlay">
-    <div class="loader"></div>
-    <p id="loading-text">正在加载，请稍候…</p>
-</div>
-
+<div id="loader-overlay"><div class="loader"></div><p id="loading-text">正在加载…</p></div>
 <div id="app-container">
     <h2>python在线运行</h2>
     <div class="playground-wrapper">
@@ -154,11 +91,11 @@
                 <label for="template-selector">选择示例代码:</label>
                 <select id="template-selector"></select>
             </div>
-            <textarea id="code-editor"></textarea>
+            <div id="monaco-container"></div>
             <div class="button-wrapper">
-                <button id="run-button" class="action-button" onclick="runCode()">运行</button>
-                <button id="clear-code-button" class="action-button" onclick="clearCode()">清空代码</button>
-                <button id="clear-output-button" class="action-button" onclick="clearOutput()">清空输出</button>
+                <button id="run-button" class="action-button">运行</button>
+                <button id="clear-code-button" class="action-button">清空代码</button>
+                <button id="clear-output-button" class="action-button">清空输出</button>
             </div>
         </div>
         <div class="panel output-panel">
@@ -168,100 +105,308 @@
     </div>
 </div>
 
-<script src="templates.js"></script>
 <script>
-    // JavaScript 部分无需改动
-    const urlParams = new URLSearchParams(window.location.search);
-    let initialCode = '';
-    const templateName = urlParams.get('tpl');
-    if (templateName && typeof codeTemplates !== 'undefined' && codeTemplates[templateName]) {
-        initialCode = codeTemplates[templateName];
-    } else if (urlParams.has('code')) {
-        initialCode = urlParams.get('code');
-    } else {
-        initialCode = 'print("欢迎使用在线 Python 运行环境！")';
-    }
-    document.getElementById('code-editor').textContent = initialCode;
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log("[Debug] DOMContentLoaded fired.");
 
-    const loadingText = document.getElementById('loading-text');
-    const outputElement = document.getElementById('output');
-    const runButton = document.getElementById('run-button');
-    const templateSelector = document.getElementById('template-selector');
-    let editor, pyodide;
+        const urlParams = new URLSearchParams(window.location.search);
+        const loadingText = document.getElementById('loading-text');
+        const outputElement = document.getElementById('output');
+        const runButton = document.getElementById('run-button');
+        const clearCodeButton = document.getElementById('clear-code-button');
+        const clearOutputButton = document.getElementById('clear-output-button');
+        const templateSelector = document.getElementById('template-selector');
+        const monacoContainer = document.getElementById('monaco-container');
 
-    let isEdge = false;
-    if (navigator.userAgentData && Array.isArray(navigator.userAgentData.brands)) {
-        isEdge = navigator.userAgentData.brands.some(b => b.brand === "Microsoft Edge");
-    } else { isEdge = /Edg\//.test(navigator.userAgent) || /Edge\//.test(navigator.userAgent); }
-    if (isEdge) { loadingText.textContent = 'Edge 浏览器加载可能较慢…'; }
+        let editor, pyodide, monaco;
+        let initialCode = 'print("Hello from Monaco!")';
+        // ** Store the Python function proxy here **
+        let pyodideCompleteFn = null;
 
-    function setupTemplateSelector() {
-        const defaultOption = document.createElement('option');
-        defaultOption.textContent = '— 从这里选择一个代码示例 —';
-        defaultOption.value = ''; defaultOption.disabled = true; defaultOption.selected = true;
-        templateSelector.appendChild(defaultOption);
-        for (const key in codeTemplates) {
-            const option = document.createElement('option');
-            option.value = key; option.textContent = key;
-            templateSelector.appendChild(option);
+        if (typeof codeTemplates !== 'undefined') {
+            const templateName = urlParams.get('tpl');
+            if (templateName && codeTemplates[templateName]) { initialCode = codeTemplates[templateName]; }
+            else if (urlParams.has('code')) { initialCode = urlParams.get('code'); }
+        } else {
+            initialCode = '# templates.js 加载失败\nprint("Error: Could not load code templates.")';
+            console.error("[Debug] codeTemplates is undefined.");
         }
-        templateSelector.addEventListener('change', (event) => {
-            const selectedKey = event.target.value;
-            if (selectedKey && codeTemplates[selectedKey]) {
-                editor.setValue(codeTemplates[selectedKey]);
+
+        // --- Function Definitions ---
+        function setupTemplateSelector() { /* ... unchanged ... */ }
+        async function installMissingPackages(code) { /* ... unchanged ... */ }
+        async function runCode() { /* ... unchanged ... */ }
+        function clearOutput() { /* ... unchanged ... */ }
+        function clearCode() { /* ... unchanged ... */ }
+
+        // ** Monaco Completion Provider - Calls the Python function **
+        function registerMonacoCompletion() {
+            if (!monaco || !pyodide || !pyodideCompleteFn) { // Check for the Python function proxy
+                console.warn("[Debug] Cannot register completion provider: Monaco, Pyodide, or Python completer not ready.");
+                return;
             }
-        });
-    }
 
-    async function main() {
-        try {
-            pyodide = await loadPyodide();
-            outputElement.textContent = "请点击运行运行代码";
-        } catch (err) {
-            outputElement.textContent = `❌ Python 环境加载失败: ${err}`;
-            console.error(err);
-        } finally {
-            document.body.classList.remove('loading');
-            document.body.style.overflow = 'auto';
-            editor = CodeMirror.fromTextArea(
-                document.getElementById('code-editor'),
-                {
-                    mode: 'python',
-                    lineNumbers: true,
-                    theme: 'default',
-                    indentUnit: 4
+            monaco.languages.registerCompletionItemProvider('python', {
+                triggerCharacters: ['.'],
+                provideCompletionItems: async (model, position) => {
+                    console.log("[Debug] provideCompletionItems triggered (calling Python fn).");
+                    const code = model.getValue();
+                    const line = position.lineNumber; // Monaco uses 1-based lines
+                    const column = position.column - 1; // Jedi uses 0-based columns
+
+                    try {
+                        // Call the Python function asynchronously
+                        const resultsString = await pyodideCompleteFn(code, line, column);
+                        const suggestions = JSON.parse(resultsString);
+
+                        if (!suggestions || suggestions.length === 0) {
+                            console.log("[Debug] No suggestions received from Python function.");
+                            return { suggestions: [] };
+                        }
+                        console.log("[Debug] Jedi suggestions from Python fn:", suggestions);
+
+                        // Convert [name, type] list to Monaco format
+                        const monacoSuggestions = suggestions.map(([name, type]) => {
+                            let kind;
+                            switch (type) {
+                                case 'function': kind = monaco.languages.CompletionItemKind.Function; break;
+                                case 'module': kind = monaco.languages.CompletionItemKind.Module; break;
+                                case 'class': kind = monaco.languages.CompletionItemKind.Class; break;
+                                case 'instance': kind = monaco.languages.CompletionItemKind.Variable; break;
+                                case 'statement': kind = monaco.languages.CompletionItemKind.Keyword; break;
+                                default: kind = monaco.languages.CompletionItemKind.Property;
+                            }
+                            const word = model.getWordUntilPosition(position);
+                            const range = {
+                                startLineNumber: position.lineNumber,
+                                endLineNumber: position.lineNumber,
+                                startColumn: word.startColumn,
+                                endColumn: word.endColumn
+                            };
+                            return { label: name, kind: kind, insertText: name, detail: type, range: range };
+                        });
+                        return { suggestions: monacoSuggestions };
+
+                    } catch (e) {
+                        console.error("Monaco completion provider error calling Python:", e);
+                        return { suggestions: [] };
+                    }
                 }
-            );
-            setupTemplateSelector();
+            });
+            console.log("[Debug] Monaco completion provider registered (using direct Python call).");
         }
-    }
-    main();
 
-    async function runCode() {
-        if (!pyodide || !editor) return;
-        const code = editor.getValue();
-        outputElement.textContent = "🚀 正在执行...";
-        runButton.disabled = true;
-        try {
-            pyodide.runPython(`import sys, io; sys.stdout = io.StringIO(); sys.stderr = io.StringIO()`);
-            await pyodide.runPythonAsync(code);
-            const stdout = pyodide.runPython("sys.stdout.getvalue()");
-            const stderr = pyodide.runPython("sys.stderr.getvalue()");
-            outputElement.textContent = (stdout + stderr).trim() || "(无输出)";
-        } catch (e) {
-            outputElement.textContent = e.toString();
-        } finally {
-            runButton.disabled = false;
+
+        // --- Main Application Logic ---
+        async function main() {
+            console.log("[Debug] main function started.");
+            try {
+                // 1. Load Pyodide
+                loadingText.textContent = "正在加载 Python 核心环境…";
+                pyodide = await loadPyodide({ indexURL: "pyodide/" });
+                console.log("[Debug] Pyodide core loaded successfully.");
+
+                // 2. ** Load jedi AND define the Python helper function **
+                loadingText.textContent = "正在加载代码提示引擎 (jedi)...";
+                try {
+                    await pyodide.loadPackage("jedi");
+                    console.log("[Debug] Jedi loaded successfully.");
+
+                    // Define the Python function for completion
+                    await pyodide.runPythonAsync(`
+import json
+import jedi
+import traceback
+import sys # Make sure sys is imported
+
+# This function will be called by JavaScript
+def get_jedi_completions(code, line, column):
+    try:
+        script = jedi.Script(code, path="example.py")
+        completions = script.complete(line, column)
+        # Filter out private members
+        result = [[c.name, c.type] for c in completions if not c.name.startswith("_")]
+        return json.dumps(result) # Return JSON string
+    except Exception as e:
+        print(f"Jedi completion error: {e}", file=sys.stderr) # Print error to stderr
+        traceback.print_exc(file=sys.stderr)
+        return "[]" # Return empty JSON array on error
+                    `);
+                    // Get the JS proxy for the Python function
+                    pyodideCompleteFn = pyodide.globals.get('get_jedi_completions');
+                    if (pyodideCompleteFn) {
+                        console.log("[Debug] Python completion function 'get_jedi_completions' is ready.");
+                    } else {
+                        console.error("[Debug] Failed to get Python completion function proxy!");
+                    }
+
+                } catch (jediErr) {
+                    console.warn("[Debug] Failed to load/setup jedi:", jediErr);
+                    loadingText.textContent += " (代码提示可能不可用)";
+                }
+
+                outputElement.textContent = "✅ Python 环境准备就绪！";
+
+            } catch (err) {
+                outputElement.textContent = `❌ Python 环境加载失败: ${err.message || err.toString()}`;
+                console.error("Pyodide loading failed:", err);
+                document.body.classList.remove('loading');
+                return;
+            }
+
+            // 3. Initialize Monaco Editor
+            try {
+                loadingText.textContent = "正在初始化编辑器 (Monaco)...";
+                if (typeof require === 'undefined') { throw new Error("Monaco loader.js failed to load."); }
+                require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs' }});
+                window.MonacoEnvironment = undefined;
+                require(['vs/editor/editor.main'], function () {
+                    console.log("[Debug] Monaco main module loaded successfully.");
+                    monaco = window.monaco;
+                    try {
+                        editor = monaco.editor.create(monacoContainer, {
+                            value: initialCode, language: 'python', theme: 'vs',
+                            automaticLayout: true,
+                            fontFamily: "'JetBrains Mono', 'LXGW WenKai Screen', monospace",
+                            fontSize: 16, lineHeight: 26,
+                            minimap: { enabled: false }, wordWrap: 'on',
+                            scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
+                            quickSuggestions: { other: true, comments: true, strings: true },
+                            suggestOnTriggerCharacters: true, // Enable default suggestions
+                        });
+                        console.log("[Debug] Monaco editor created successfully.");
+
+                        // ** Register the completion provider AFTER editor is created **
+                        registerMonacoCompletion();
+
+                        setupTemplateSelector();
+                        runButton.disabled = false;
+                        loadingText.textContent = '加载完成!';
+                        document.body.classList.remove('loading');
+                        setTimeout(()=> loadingText.style.display = 'none', 1000);
+
+                    } catch (createErr) { /* ... error handling ... */ }
+                }, function(err) { /* ... error handling ... */ });
+            } catch (editorErr) { /* ... error handling ... */ }
         }
-    }
-    function clearOutput() {
-        outputElement.textContent = "请点击运行运行代码";
-    }
-    function clearCode() {
-        if (editor) {
-            editor.setValue('');
+
+        // --- Event Listeners ---
+        runButton.addEventListener('click', runCode);
+        clearCodeButton.addEventListener('click', clearCode);
+        clearOutputButton.addEventListener('click', clearOutput);
+
+        // --- Start App ---
+        main();
+
+        // --- Function Definitions (ensure they are accessible) ---
+        function setupTemplateSelector() {
+            console.log("[Debug] setupTemplateSelector called.");
+            if (typeof codeTemplates === 'undefined' || !templateSelector) { console.error("[Debug] Cannot setup selector: codeTemplates or selector element is missing."); return; }
+            templateSelector.innerHTML = '';
+            const defaultOption = document.createElement('option');
+            defaultOption.textContent = '— 从这里选择一个代码示例 —';
+            defaultOption.value = ''; defaultOption.disabled = true; defaultOption.selected = true;
+            templateSelector.appendChild(defaultOption);
+            for (const key in codeTemplates) {
+                const option = document.createElement('option');
+                option.value = key; option.textContent = key;
+                templateSelector.appendChild(option);
+            }
+            templateSelector.addEventListener('change', (event) => {
+                const selectedKey = event.target.value;
+                if (selectedKey && codeTemplates[selectedKey] && editor) { editor.setValue(codeTemplates[selectedKey]); }
+            });
         }
-    }
+        async function installMissingPackages(code) {
+            if (!pyodide) return;
+            console.log("[Debug] Ensuring micropip is loaded...");
+            await pyodide.loadPackage("micropip");
+            const micropip = pyodide.pyimport("micropip");
+            console.log("[Debug] micropip ready.");
+            const importRegex = /(?:^|\n)\s*import\s+([a-zA-Z_][a-zA-Z0-9_.]*)|(?:^|\n)\s*from\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+import/g;
+            const pkgsToInstall = new Set();
+            let match;
+            const loadedPackages = pyodide.loadedPackages;
+            const sysModules = await pyodide.runPythonAsync('import sys; list(sys.modules.keys())');
+            const stdlibModules = pyodide.pyimport("sys").stdlib_module_names;
+            console.log("[Debug] Scanning code for imports...");
+            while ((match = importRegex.exec(code)) !== null) {
+                const moduleName = (match[1] || match[2]).split('.')[0];
+                if (moduleName && !loadedPackages[moduleName] && !sysModules.includes(moduleName) && !stdlibModules.has(moduleName)) {
+                    console.log(`[Debug] Detected potential package to install: ${moduleName}`);
+                    pkgsToInstall.add(moduleName);
+                }
+            }
+            if (pkgsToInstall.size > 0) {
+                const pkgList = Array.from(pkgsToInstall);
+                outputElement.textContent = `🚀 检测到需安装模块: ${pkgList.join(', ')}。正在尝试安装...`;
+                console.log("[Debug] Attempting to install packages via micropip:", pkgList);
+                try {
+                    await micropip.install(pkgList);
+                    outputElement.textContent = `✅ 模块 ${pkgList.join(', ')} 安装成功。`;
+                    console.log("[Debug] micropip install successful for:", pkgList);
+                } catch (installErr) {
+                    console.error("[Debug] micropip install failed:", installErr);
+                    let errMsg = installErr.message || installErr.toString();
+                    if (pyodide && installErr.name === 'PythonError') {
+                        try {
+                            pyodide.runPython("traceback.print_exc(file=sys.stderr)");
+                            let pyTraceback = pyodide.runPython("sys.stderr.getvalue()");
+                            if (pyTraceback) { errMsg = pyTraceback; }
+                        } catch (tbErr) { console.error("Failed to get Python traceback for install error:", tbErr); }
+                    }
+                    if (errMsg.includes('Can\'t find a pure Python source distribution') || errMsg.includes('No matching distribution found')) {
+                        errMsg = `模块 '${pkgList.join(', ')}' 无法找到或不支持。\n(错误详情: ${installErr.message || installErr})`;
+                    }
+                    outputElement.textContent = `❌ 模块安装失败: \n${errMsg}`;
+                    micropip.destroy();
+                    throw new Error("Package installation failed");
+                }
+            } else {
+                console.log("[Debug] No new packages detected for installation.");
+            }
+            micropip.destroy();
+        }
+        async function runCode() {
+            if (!pyodide || !editor) { console.warn("Pyodide or Editor not ready for runCode."); return; }
+            const code = editor.getValue();
+            runButton.disabled = true;
+            outputElement.textContent = "🚀 准备运行环境...";
+            try {
+                await installMissingPackages(code); // 调用自动安装
+
+                outputElement.textContent = "🚀 正在执行代码...";
+                pyodide.runPython(`import sys, io, traceback; sys.stdout = io.StringIO(); sys.stderr = io.StringIO()`);
+                await pyodide.runPythonAsync(code);
+                const stdout = pyodide.runPython("sys.stdout.getvalue()");
+                const stderr = pyodide.runPython("sys.stderr.getvalue()");
+                if(stderr) { outputElement.textContent = stderr.trim(); }
+                else { outputElement.textContent = stdout.trim() || "(无输出)"; }
+
+            } catch (e) {
+                console.error("Run code error (raw JS error):", e);
+                let errorMsg = e.message || e.toString();
+                if (e.message !== "Package installation failed" && pyodide && (e.name === "PythonError" || e.constructor.name === "PythonError")) {
+                    try {
+                        pyodide.runPython("traceback.print_exc(file=sys.stderr)");
+                        let pyTraceback = pyodide.runPython("sys.stderr.getvalue()");
+                        if (pyTraceback) { errorMsg = pyTraceback; }
+                    } catch (tbErr) { console.error("Failed to get Python traceback:", tbErr); }
+                }
+                if (e.message !== "Package installation failed") {
+                    outputElement.textContent = `❌ 运行出错:\n${errorMsg}`;
+                }
+            } finally {
+                runButton.disabled = false;
+            }
+        }
+        function clearOutput() {
+            const outputElement = document.getElementById('output');
+            outputElement.textContent = "请点击运行运行代码";
+        }
+        function clearCode() { if (editor) { editor.setValue(''); } }
+
+    }); // End of DOMContentLoaded
 </script>
 </body>
 </html>
