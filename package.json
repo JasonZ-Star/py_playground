@@ -1,10 +1,11 @@
 {
   "name": "py_playground",
   "version": "1.0.0",
-  "description": "Python 在线运行前端演示环境",
+  "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "npx http-server ."
+    "start": "python -m http.server 5500",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "private": true
 }
