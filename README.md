@@ -1,118 +1,314 @@
-# Python 在线运行（Pyodide + CodeMirror）
+# Python 在线运行 - 全链路优化版
 
-本项目是一个纯静态网页的 Python 在线运行环境，基于 Pyodide 与 CodeMirror 编辑器，支持：
-- 离线执行（使用本地 `pyodide/` 目录中的 WASM 与 wheel 包）
-- Jedi 自动补全（通过 PyodideConsole + jedi）
-- 外链编辑器资源（CodeMirror）超时自动回退到本地 vendor 目录
-- 自动解析并加载依赖（`pyodide.loadPackagesFromImports`），并对 numpy 进行了显式兜底
+本项目是一个纯静态网页的 Python 在线运行环境，基于 **Pyodide** 与 **Monaco Editor**，具备完整的异步架构、离线支持、深色模式和智能补全功能。
 
+## ✨ 核心特性
 
-## 一、快速开始
+### 🚀 异步架构
+- **Web Worker 后台处理**：包安装、代码执行、补全计算全部在 Worker 中完成，UI 永不阻塞
+- **AST 智能包分析**：自动解析 import 语句，识别需要安装的第三方包
+- **渐进式加载**：分阶段加载核心环境、补全引擎，用户可即时开始编码
 
-1) 使用本地静态服务器打开项目根目录（不要直接用浏览器打开本地文件）：
+### 🌓 深色模式
+- **完整主题系统**：基于 CSS 变量的全局主题切换
+- **首帧主题一致**：通过内联脚本避免"白屏闪烁"
+- **状态持久化**：主题选择保存到 localStorage，刷新后保持
+- **系统偏好检测**：首次访问时自动检测系统深色模式偏好
 
-```cmd
-cd H:\Code_Files\py_playground
+### 🎯 智能错误定位
+- **Traceback 解析**：自动提取 Python 错误的行号
+- **行内高亮**：在编辑器中高亮错误行，添加左侧红色标记
+- **一键跳转**：输出区提供"跳转到错误行"按钮
+- **悬浮提示**：错误行添加 Monaco marker，鼠标悬停可见提示
+
+### 💡 增强代码补全
+- **Jedi 集成**：基于 Jedi 的 Python 代码分析
+- **类型推断**：针对 pandas DataFrame、numpy ndarray 等常见实例进行启发式类型推断
+- **实时触发**：输入 `.` 自动弹出补全，Ctrl+Space 手动触发
+- **智能过滤**：自动过滤私有成员（`_` 开头）
+
+### 📡 离线增强
+- **Service Worker**：缓存核心资源实现离线访问
+- **Monaco Workers 预缓存**：编辑器 worker 文件提前缓存，加速启动
+- **网络优先策略**：在线时优先获取最新资源，离线时回退缓存
+- **渐进式缓存**：成功的网络请求自动回填缓存
+
+### 🎨 Monaco Editor 多源加载
+- **多 CDN 回退**：jsDelivr → unpkg → 本地 monaco → 本地 monoca
+- **AMD Loader 注入**：检测到缺失时自动注入本地 loader
+- **超时保护**：每个源设置 5 秒超时，确保快速回退
+
+### 📦 增强示例模板
+- **Pandas 网络回退**：优先从网络加载 CSV，失败自动使用本地数据
+- **本地数据集**：预置波士顿房价数据集供离线使用
+- **补全友好**：模板代码返回 DataFrame 对象，便于测试补全功能
+
+## 🚀 快速开始
+
+### 1. 准备依赖
+
+本项目需要以下目录（根据使用场景选择准备）：
+
+#### 必需（核心功能）
+```
+pyodide/                    # Pyodide WASM 运行时
+  pyodide.js
+  pyodide.asm.js
+  packages/
+    jedi.js               # 代码补全引擎
+    micropip.js           # 包管理器
+    numpy.js              # 示例需要
+    pandas.js             # 示例需要
+```
+
+下载 Pyodide（版本 0.23.0+）：
+- 官方：https://github.com/pyodide/pyodide/releases
+- 或使用 CDN：https://cdn.jsdelivr.net/pyodide/
+
+#### 可选（离线完整体验）
+```
+monaco/                     # Monaco Editor 本地备份
+  min/
+    vs/
+      loader.js
+      editor/
+        editor.main.js
+        editor.main.css
+        editor.worker.js
+      language/
+        json/json.worker.js
+        css/css.worker.js
+        html/html.worker.js
+        typescript/ts.worker.js
+```
+
+下载 Monaco Editor（版本 0.47.0）：
+- npm: `npm install monaco-editor@0.47.0`
+- CDN: https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/
+
+### 2. 启动服务
+
+```bash
+# 方式 1: Python 内置服务器
 python -m http.server 5500
+
+# 方式 2: Node.js http-server
+npm run start
+
+# 方式 3: 任何静态文件服务器
 ```
 
-2) 浏览器访问：
-- http://localhost:5500/
+### 3. 访问应用
 
-3) 体验：
-- 在编辑器内输入示例代码或选择模板，点击“运行”。
-- 试试补全：输入变量或模块名后按 Ctrl+Space，或输入一个点号“.” 触发补全。
+浏览器打开：http://localhost:5500/
 
+**重要**：必须通过 HTTP(S) 协议访问，直接打开 file:// 会导致 CORS 错误和 Service Worker 无法注册。
 
-## 二、编辑器资源的“外链超时 -> 本地回退”
-
-页面默认引用了 CodeMirror 的 CDN 链接（见 `index.html` 头部）。为兼顾离线与弱网环境，我们在页面脚本中增加了一个 2.5 秒的超时检测：
-- 如果 2.5 秒内外链资源加载成功，则继续使用 CDN。
-- 如果超过 2.5 秒仍未就绪，则自动改为加载本地 `vendor/codemirror` 下的相同文件。
-
-你需要按以下目录准备好本地文件（当你希望完全离线或 CDN 不稳定时）：
+## 📁 项目结构
 
 ```
-vendor/
-  codemirror/
-    codemirror.min.css
-    codemirror.min.js
-    mode/
-      python/
-        python.min.js
-    addon/
-      hint/
-        show-hint.min.css
-        show-hint.min.js
+.
+├── index.html              # 主页面（全功能 UI + Monaco 加载）
+├── py-worker.js            # Web Worker（异步 Python 操作）
+├── sw.js                   # Service Worker（离线缓存）
+├── templates.js            # 代码示例模板
+├── index.js                # 占位文件
+├── data/
+│   └── boston_housing.csv  # 示例数据集
+├── fonts/                  # JetBrains Mono 字体
+└── README.md               # 本文件
 ```
 
-对应的下载来源（任选其一，版本需与外链匹配 5.65.5）：
-- 官方发布包（CodeMirror 5）：https://codemirror.net/5/
-- 或使用你信任的 CDN 下载同版本后保存到上述目录
+## 🎮 功能使用
 
-注意：
-- 目录与文件名需与上方完全一致，否则本地回退会失败并在页面上提示错误。
-- 本项目已内置 CSS 类用于提示 UI（`.CodeMirror-hints` 等），静态扫描可能误报“未使用”，实际运行时会生效。
+### 代码编辑与运行
+1. 在编辑器中输入 Python 代码或选择示例模板
+2. 点击"运行"按钮执行代码
+3. 首次运行会自动安装检测到的第三方包
+4. 输出显示在右侧面板
 
+### 代码补全
+- 输入变量名后按 `Ctrl+Space` 触发补全
+- 输入 `.` 后自动弹出成员补全
+- 适用于标准库、第三方库和用户定义的对象
 
-## 三、Pyodide 与依赖加载
+### 错误调试
+- 代码运行出错时，错误行会自动高亮
+- 点击输出区的"跳转到错误行"按钮快速定位
+- 鼠标悬停在错误行上查看提示
 
-- Pyodide 通过本地 `pyodide/` 目录加载，无需联网。
-- 运行用户代码前，会执行 `pyodide.loadPackagesFromImports(code)` 自动解析并加载代码里 `import` 的包。
-- 出现过一种现象：日志显示先加载了 `numpy-tests`（测试包），但用户代码仍然 `import numpy` 失败；为此我们增加了显式兜底：
-  1) 如果代码包含 `import numpy`/`from numpy import ...`，我们会尝试 `pyodide.pyimport("numpy")`；
-  2) 若未加载成功，则执行 `pyodide.loadPackage('numpy')` 强制从本地 `pyodide/` 安装 numpy 的 wheel。
+### 主题切换
+- 点击右上角 🌓 图标切换深色/浅色主题
+- 主题选择会自动保存，刷新后保持
+- 编辑器主题与页面主题同步
 
-这可以避免只加载到测试包但未装入运行时包而报 PythonError 的问题。
+### 停止执行
+- 对于长时间运行的代码，点击"停止"按钮中断
+- Worker 会被终止并重新启动，确保环境干净
 
+### 离线使用
+- 首次在线访问后，核心资源会被缓存
+- 后续可在无网络环境下访问和运行代码
+- Service Worker 自动处理缓存更新
 
-## 四、Jedi 自动补全
+## 🔧 技术架构
 
-- 页面在 Pyodide 就绪后会 `loadPackage('jedi')`，并通过 `pyodide.pyimport('pyodide.console')` 创建 PyodideConsole 实例。
-- CodeMirror 的提示回调会调用 `pyconsole.complete(当前行文本)` 来获取补全建议。
-- 触发方式：
-  - Ctrl+Space 主动补全
-  - 输入点号 “.” 自动弹出候选
+### 前端架构
+- **UI 主线程**：仅负责界面渲染和用户交互
+- **Web Worker 线程**：执行所有 Python 相关操作
+- **Service Worker 线程**：管理资源缓存和离线功能
 
+### 通信机制
+```
+用户交互 → WorkerClient → postMessage → py-worker.js
+                            ← onmessage ← Pyodide 执行结果
+```
 
-## 五、可选的字体离线化（可跳过）
+### Monaco 加载策略
+```
+1. 检查 AMD loader (require)
+   ├─ 未找到 → 注入本地 loader (monaco/monoca)
+   └─ 已有 → 继续
+2. 尝试加载 Monaco
+   ├─ jsDelivr CDN (5s 超时)
+   ├─ unpkg CDN (5s 超时)
+   ├─ 本地 /monaco/min/vs
+   └─ 本地 /monoca/min/vs
+```
 
-- 页头引入了 `LXGW WenKai Screen` 的外链 CSS。若你希望完全离线，可自行下载对应字体和 CSS，放到 `vendor/fonts`，并将 `index.html` 的链接替换为本地路径。
-- 该字体为可选，未就绪也不影响功能。
+### Service Worker 缓存
+- **安装阶段**：预缓存核心资产（HTML、JS、Monaco workers）
+- **激活阶段**：清理旧版本缓存
+- **请求阶段**：网络优先，失败回退缓存
 
+## 🎨 自定义
 
-## 六、常见问题（FAQ）
+### 添加代码模板
+编辑 `templates.js`：
+```javascript
+const codeTemplates = {
+    'my-template': `# 你的代码
+print("Hello, World!")`,
+    // ... 更多模板
+};
+```
 
-1) 页面提示“无法加载编辑器资源。请检查网络或按 README 准备本地 vendor/codemirror 目录。”
-   - 说明 2.5 秒内未能从 CDN 拉到 CodeMirror，且本地 vendor 目录未准备好或路径不匹配。请按照“二、编辑器资源的本地回退”章节准备文件。
+### 修改主题颜色
+编辑 `index.html` 中的 CSS 变量：
+```css
+:root {
+    --bg-primary: #f7f7f7;
+    --text-primary: #333;
+    /* ... 更多变量 */
+}
 
-2) 执行涉及 numpy 的代码报 PythonError，日志上只有 `Loaded numpy-tests`。
-   - 这是因为自动解析只装入了测试包。当前实现已在运行前做兜底：检查 `numpy` 是否可 import，不可时自动 `loadPackage('numpy')`。
+.dark-mode {
+    --bg-primary: #1e1e1e;
+    --text-primary: #d4d4d4;
+    /* ... 更多变量 */
+}
+```
 
-3) 需要联网吗？
-   - 加载 Pyodide 与常见科学包（见 `pyodide/` 目录）不需要联网。
-   - CodeMirror 默认走 CDN，但已内置本地回退方案；若你常在离线环境，建议提前准备好 `vendor/codemirror`。
+### 添加更多示例数据
+将 CSV/JSON 文件放到 `data/` 目录，在模板中使用：
+```python
+import pandas as pd
+df = pd.read_csv("/data/your-data.csv")
+```
 
+## ⚙️ 浏览器兼容性
 
-## 七、运行与调试小贴士
+### 完整支持（推荐）
+- Chrome/Edge 90+
+- Firefox 90+
+- Safari 15.4+
 
-- 建议使用 Chromium 内核的浏览器，通过本地 http 服务访问。
-- 如果遇到白屏或控制台错误，请打开开发者工具（F12）查看 Console 日志；页面在关键步骤处打印了 `[Debug]` 日志，便于排查。
-- 如果你有自己的编辑器主题、快捷键或更多提示触发条件，可在 `index.html` 的 CodeMirror 初始化处进一步调整（`extraKeys`、`hintOptions`、`editor.on('inputRead', ...)`）。
+### 功能降级
+- **无 Service Worker**：离线功能不可用，其他正常
+- **无 SharedArrayBuffer**：无法中断执行，需刷新页面
 
+### 不支持
+- IE 11 及以下（不支持 WebAssembly）
 
-## 八、目录说明
+## 🐛 常见问题
 
-- `index.html`：页面主体、加载器与运行逻辑（包含 CDN -> 本地的回退实现）
-- `templates.js`：示例代码模板
-- `pyodide/`：Pyodide runtime、锁文件与本地 wheel 包
-- `fonts/`：JetBrains Mono（本地）与其他字体（可选）
-- `vendor/`：本地回退的第三方前端资源目录（需自行准备 CodeMirror 文件）
+### Q: 页面白屏或编辑器无法加载
+A: 
+1. 检查浏览器控制台错误
+2. 确认通过 HTTP(S) 访问，不是 file://
+3. 检查 Monaco Editor CDN 是否可访问
+4. 准备本地 monaco/ 目录作为回退
 
+### Q: 代码补全不工作
+A:
+1. 等待"✅ Python 环境准备就绪"提示
+2. 确认 Jedi 包已加载（查看控制台日志）
+3. 尝试手动触发补全（Ctrl+Space）
 
-## 九、后续建议（可选）
+### Q: Service Worker 未生效
+A:
+1. 必须通过 HTTPS 或 localhost 访问
+2. 检查浏览器开发者工具 → Application → Service Workers
+3. 点击 "Update" 或 "Unregister" 重新注册
 
-- 增加一个简单的本地启动脚本（例如 `npm run serve` 使用 `http-server` 或者 VS Code/JetBrains 的 Live Server 插件）。
-- 将外链字体也本地化，保证完全离线体验。
-- 增加基础的 UI 提示（例如包加载进度条）与更多模板示例。
+### Q: 包安装失败
+A:
+1. 某些包不支持 Pyodide（如 tensorflow）
+2. 检查包名是否正确
+3. 查看控制台详细错误信息
 
+### Q: 深色模式闪烁
+A:
+- 已通过 `<head>` 内联脚本解决，如仍有问题请清除浏览器缓存
+
+## 📝 开发路线图
+
+### 已完成 ✅
+- [x] 异步 Web Worker 架构
+- [x] 深色模式完整支持
+- [x] 错误行高亮与跳转
+- [x] Monaco 多源加载
+- [x] Service Worker 离线缓存
+- [x] Jedi 补全优化
+- [x] Pandas/Numpy 模板
+
+### 计划中 🔜
+- [ ] 主题配置界面（跟随系统/总是深色/总是浅色）
+- [ ] 更多预置数据集
+- [ ] 代码格式化（Black）
+- [ ] 代码静态检查（Pyflakes）
+- [ ] 执行历史记录
+- [ ] 代码片段分享功能
+- [ ] 多文件项目支持
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+### 贡献指南
+1. Fork 本仓库
+2. 创建特性分支：`git checkout -b feature/AmazingFeature`
+3. 提交更改：`git commit -m 'Add some AmazingFeature'`
+4. 推送分支：`git push origin feature/AmazingFeature`
+5. 开启 Pull Request
+
+## 📄 许可证
+
+本项目采用 MIT 许可证 - 详见 LICENSE 文件
+
+## 🙏 致谢
+
+- [Pyodide](https://pyodide.org/) - Python for the browser
+- [Monaco Editor](https://microsoft.github.io/monaco-editor/) - VS Code 编辑器核心
+- [Jedi](https://jedi.readthedocs.io/) - Python 代码分析
+- [pandas](https://pandas.pydata.org/) - 数据分析库
+- [NumPy](https://numpy.org/) - 科学计算库
+
+## 📧 联系方式
+
+- Issues: https://github.com/JasonZ-Star/py_playground/issues
+- Discussions: https://github.com/JasonZ-Star/py_playground/discussions
+
+---
+
+**享受 Python 在线编程的乐趣！** 🐍✨
