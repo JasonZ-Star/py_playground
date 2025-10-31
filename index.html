@@ -3,15 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>python在线运行 (v0.29.0 - Direct Jedi Hints)</title> <script src="pyodide/pyodide.js" defer></script>
+    <title>Python在线运行 - 全链路优化版</title>
+    
+    <!-- Early theme initialization to avoid flash -->
+    <script>
+        (function(){
+            try {
+                var t = localStorage.getItem('pythonEditorTheme');
+                var dark = t ? (t === 'dark') : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if(dark){ document.documentElement.classList.add('dark-mode'); }
+            } catch(e) {}
+        })();
+    </script>
+    
     <script src="templates.js" defer></script>
-
-    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.min.js" defer></script>
-
-    <link href="https://cdn.bootcdn.net/ajax/libs/lxgw-wenkai-screen-webfont/1.6.0/lxgwwenkaiscreen.css" rel="stylesheet">
-
+    
     <style>
-        /* CSS unchanged */
+        /* Theme CSS Variables */
+        :root {
+            --bg-primary: #f7f7f7;
+            --bg-secondary: #fff;
+            --text-primary: #333;
+            --text-secondary: #666;
+            --border-color: #ddd;
+            --loader-bg: rgba(255, 255, 255, 0.8);
+            --button-run: #007bff;
+            --button-run-hover: #0056b3;
+            --button-clear: #6c757d;
+            --button-clear-hover: #5a6268;
+            --button-danger: #dc3545;
+            --button-danger-hover: #c82333;
+            --output-bg: #f9f9f9;
+            --error-line-bg: rgba(255, 0, 0, 0.1);
+            --error-line-border: #ff0000;
+        }
+        
+        .dark-mode {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #252526;
+            --text-primary: #d4d4d4;
+            --text-secondary: #999;
+            --border-color: #3e3e3e;
+            --loader-bg: rgba(30, 30, 30, 0.8);
+            --button-run: #0e639c;
+            --button-run-hover: #1177bb;
+            --button-clear: #555;
+            --button-clear-hover: #666;
+            --button-danger: #c5374b;
+            --button-danger-hover: #d44658;
+            --output-bg: #1e1e1e;
+            --error-line-bg: rgba(255, 0, 0, 0.2);
+            --error-line-border: #ff6b6b;
+        }
+        
+        /* Base styles */
         @font-face {
             font-family: 'JetBrains Mono';
             src: url('fonts/webfonts/JetBrainsMono-Regular.woff2') format('woff2');
@@ -22,69 +67,233 @@
             src: url('fonts/webfonts/JetBrainsMono-Bold.woff2') format('woff2');
             font-weight: 700; font-style: normal; font-display: swap;
         }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            margin: 0; background-color: #f7f7f7; overflow: hidden;
+            margin: 0; 
+            background-color: var(--bg-primary); 
+            color: var(--text-primary);
+            overflow: hidden;
+            transition: background-color 0.3s, color 0.3s;
         }
-        h2 { text-align: center; color: #333; font-size: 24px; margin-top: 0; }
-        h3 { margin-top: 0; }
+        
+        h2 { text-align: center; color: var(--text-primary); font-size: 24px; margin-top: 0; }
+        h3 { margin-top: 0; color: var(--text-primary); }
+        
+        /* Loader overlay */
         #loader-overlay { display: none; }
         body.loading #loader-overlay {
             display: flex; flex-direction: column; position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
-            background-color: rgba(255, 255, 255, 0.8);
+            background-color: var(--loader-bg);
             justify-content: center; align-items: center; z-index: 9999;
         }
         body.loading #app-container { display: none; }
         .loader {
-            border: 5px solid #f3f3f3; border-top: 5px solid #3498db;
+            border: 5px solid var(--border-color); 
+            border-top: 5px solid var(--button-run);
             border-radius: 50%; width: 50px; height: 50px;
             animation: spin 1s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #loading-text { margin-top: 15px; font-size: 16px; color: #333; }
+        #loading-text { margin-top: 15px; font-size: 16px; color: var(--text-primary); }
+        
+        /* App container */
         #app-container {
             display: flex; flex-direction: column;
             height: 100vh; padding: 20px; box-sizing: border-box;
         }
+        
+        .header-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
         .playground-wrapper {
             display: flex; flex: 1; gap: 20px; overflow: hidden;
         }
         .panel {
-            background: #fff; padding: 20px; border-radius: 8px;
+            background: var(--bg-secondary); 
+            padding: 20px; 
+            border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             display: flex; flex-direction: column;
             width: 100%;
         }
         .editor-panel { flex-basis: 60%; }
         .output-panel { flex-basis: 40%; }
+        
         #monaco-container {
             flex: 1;
             min-height: 150px;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border-color);
             border-radius: 4px;
             overflow: hidden;
         }
+        
         .template-selector-wrapper { margin-bottom: 15px; }
-        #template-selector { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd; font-size: 14px; }
-        .button-wrapper { display: flex; justify-content: center; gap: 15px; margin-top: 15px; }
-        .action-button { flex-grow: 1; max-width: 150px; padding: 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; transition: all 0.3s; }
-        #run-button { background-color: #007bff; color: white; }
-        #run-button:hover:not(:disabled) { background-color: #0056b3; }
+        #template-selector { 
+            width: 100%; 
+            padding: 8px; 
+            border-radius: 4px; 
+            border: 1px solid var(--border-color); 
+            font-size: 14px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+        
+        .button-wrapper { 
+            display: flex; 
+            justify-content: center; 
+            gap: 15px; 
+            margin-top: 15px; 
+        }
+        
+        .action-button, .icon-button { 
+            padding: 10px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            transition: all 0.3s; 
+        }
+        
+        .action-button {
+            flex-grow: 1; 
+            max-width: 150px;
+        }
+        
+        .icon-button {
+            min-width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        #run-button { background-color: var(--button-run); color: white; }
+        #run-button:hover:not(:disabled) { background-color: var(--button-run-hover); }
         #run-button:disabled { background-color: #ccc; cursor: not-allowed; }
-        #clear-output-button { background-color: #6c757d; color: white; }
-        #clear-output-button:hover { background-color: #5a6268; }
-        #clear-code-button { background-color: #dc3545; color: white; }
-        #clear-code-button:hover { background-color: #c82333; }
-        #output { flex: 1; border: 1px solid #ddd; background: #f9f9f9; padding: 10px; white-space: pre-wrap; word-wrap: break-word; border-radius: 4px; overflow-y: auto; font-family: 'JetBrains Mono', 'LXGW WenKai Screen', sans-serif; font-size: 16px; line-height: 1.6; letter-spacing: 0.5px; }
-        @media (max-width: 768px) { #app-container { padding: 10px; } .playground-wrapper { flex-direction: column; gap: 10px; } .panel { padding: 15px; flex: 1; min-height: 0; } h2 { font-size: 20px; } }
+        
+        #stop-button { background-color: #dc3545; color: white; display: none; }
+        #stop-button:hover { background-color: #c82333; }
+        
+        #clear-output-button { background-color: var(--button-clear); color: white; }
+        #clear-output-button:hover { background-color: var(--button-clear-hover); }
+        
+        #clear-code-button { background-color: var(--button-danger); color: white; }
+        #clear-code-button:hover { background-color: var(--button-danger-hover); }
+        
+        #theme-toggle { 
+            background-color: var(--button-clear); 
+            color: white; 
+        }
+        #theme-toggle:hover { 
+            background-color: var(--button-clear-hover); 
+        }
+        
+        #jump-to-error {
+            background-color: #ff9800;
+            color: white;
+            display: none;
+            margin-top: 10px;
+        }
+        #jump-to-error:hover {
+            background-color: #e68900;
+        }
+        
+        #output { 
+            flex: 1; 
+            border: 1px solid var(--border-color); 
+            background: var(--output-bg); 
+            color: var(--text-primary);
+            padding: 10px; 
+            white-space: pre-wrap; 
+            word-wrap: break-word; 
+            border-radius: 4px; 
+            overflow-y: auto; 
+            font-family: 'JetBrains Mono', monospace; 
+            font-size: 16px; 
+            line-height: 1.6; 
+            letter-spacing: 0.5px; 
+        }
+        
+        /* Monaco error decorations */
+        .error-line-decoration {
+            background: var(--error-line-bg);
+            border-left: 3px solid var(--error-line-border);
+        }
+        
+        .error-line-glyph {
+            background: var(--error-line-border);
+            width: 5px !important;
+            margin-left: 3px;
+        }
+        
+        /* Tooltip styles */
+        .icon-button[data-tooltip] {
+            position: relative;
+        }
+        
+        .icon-button[data-tooltip]::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+        
+        .icon-button[data-tooltip][data-tooltip-pos="bottom"]::after {
+            top: calc(100% + 5px);
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .icon-button[data-tooltip][data-tooltip-pos="top"]::after {
+            bottom: calc(100% + 5px);
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .icon-button[data-tooltip]:hover::after,
+        .icon-button[data-tooltip]:focus::after {
+            opacity: 1;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) { 
+            #app-container { padding: 10px; } 
+            .playground-wrapper { flex-direction: column; gap: 10px; } 
+            .panel { padding: 15px; flex: 1; min-height: 0; } 
+            h2 { font-size: 20px; } 
+        }
     </style>
 </head>
 <body class="loading">
 
-<div id="loader-overlay"><div class="loader"></div><p id="loading-text">正在加载…</p></div>
+<div id="loader-overlay">
+    <div class="loader"></div>
+    <p id="loading-text">正在加载...</p>
+</div>
+
 <div id="app-container">
-    <h2>python在线运行</h2>
+    <div class="header-controls">
+        <h2>Python在线运行</h2>
+        <button id="theme-toggle" class="icon-button" data-tooltip="切换主题" data-tooltip-pos="bottom">
+            🌓
+        </button>
+    </div>
+    
     <div class="playground-wrapper">
         <div class="panel editor-panel">
             <div class="template-selector-wrapper">
@@ -94,6 +303,7 @@
             <div id="monaco-container"></div>
             <div class="button-wrapper">
                 <button id="run-button" class="action-button">运行</button>
+                <button id="stop-button" class="action-button">停止</button>
                 <button id="clear-code-button" class="action-button">清空代码</button>
                 <button id="clear-output-button" class="action-button">清空输出</button>
             </div>
@@ -101,312 +311,574 @@
         <div class="panel output-panel">
             <h3>输出:</h3>
             <pre id="output"></pre>
+            <button id="jump-to-error" class="action-button">跳转到错误行</button>
         </div>
     </div>
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        console.log("[Debug] DOMContentLoaded fired.");
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const loadingText = document.getElementById('loading-text');
-        const outputElement = document.getElementById('output');
-        const runButton = document.getElementById('run-button');
-        const clearCodeButton = document.getElementById('clear-code-button');
-        const clearOutputButton = document.getElementById('clear-output-button');
-        const templateSelector = document.getElementById('template-selector');
-        const monacoContainer = document.getElementById('monaco-container');
-
-        let editor, pyodide, monaco;
-        let initialCode = 'print("Hello from Monaco!")';
-        // ** Store the Python function proxy here **
-        let pyodideCompleteFn = null;
-
-        if (typeof codeTemplates !== 'undefined') {
-            const templateName = urlParams.get('tpl');
-            if (templateName && codeTemplates[templateName]) { initialCode = codeTemplates[templateName]; }
-            else if (urlParams.has('code')) { initialCode = urlParams.get('code'); }
-        } else {
-            initialCode = '# templates.js 加载失败\nprint("Error: Could not load code templates.")';
-            console.error("[Debug] codeTemplates is undefined.");
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log("[Debug] DOMContentLoaded fired.");
+    
+    // Sync theme between html and body
+    const htmlDark = document.documentElement.classList.contains('dark-mode');
+    if (htmlDark) {
+        document.body.classList.add('dark-mode');
+    }
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const loadingText = document.getElementById('loading-text');
+    const outputElement = document.getElementById('output');
+    const runButton = document.getElementById('run-button');
+    const stopButton = document.getElementById('stop-button');
+    const clearCodeButton = document.getElementById('clear-code-button');
+    const clearOutputButton = document.getElementById('clear-output-button');
+    const themeToggle = document.getElementById('theme-toggle');
+    const jumpToErrorButton = document.getElementById('jump-to-error');
+    const templateSelector = document.getElementById('template-selector');
+    const monacoContainer = document.getElementById('monaco-container');
+    
+    let editor, monaco;
+    let worker = null;
+    let workerMessageId = 0;
+    let workerCallbacks = new Map();
+    let lastErrorLine = null;
+    let errorDecorations = [];
+    
+    // Storage Manager
+    const StorageManager = {
+        getTheme: () => {
+            try {
+                return localStorage.getItem('pythonEditorTheme');
+            } catch(e) { return null; }
+        },
+        setTheme: (theme) => {
+            try {
+                localStorage.setItem('pythonEditorTheme', theme);
+            } catch(e) {}
         }
-
-        // --- Function Definitions ---
-        function setupTemplateSelector() { /* ... unchanged ... */ }
-        async function installMissingPackages(code) { /* ... unchanged ... */ }
-        async function runCode() { /* ... unchanged ... */ }
-        function clearOutput() { /* ... unchanged ... */ }
-        function clearCode() { /* ... unchanged ... */ }
-
-        // ** Monaco Completion Provider - Calls the Python function **
-        function registerMonacoCompletion() {
-            if (!monaco || !pyodide || !pyodideCompleteFn) { // Check for the Python function proxy
-                console.warn("[Debug] Cannot register completion provider: Monaco, Pyodide, or Python completer not ready.");
-                return;
+    };
+    
+    // Get initial code
+    let initialCode = 'print("Hello from Monaco!")';
+    if (typeof codeTemplates !== 'undefined') {
+        const templateName = urlParams.get('tpl');
+        if (templateName && codeTemplates[templateName]) { 
+            initialCode = codeTemplates[templateName]; 
+        } else if (urlParams.has('code')) { 
+            initialCode = urlParams.get('code'); 
+        }
+    } else {
+        initialCode = '# templates.js 加载失败\nprint("Error: Could not load code templates.")';
+        console.error("[Debug] codeTemplates is undefined.");
+    }
+    
+    // Worker Client
+    class WorkerClient {
+        constructor(workerUrl) {
+            this.worker = new Worker(workerUrl);
+            this.messageId = 0;
+            this.callbacks = new Map();
+            
+            this.worker.onmessage = (e) => {
+                const { id, action, status, result, completions, packages, error, message } = e.data;
+                
+                // Handle progress messages
+                if (status === 'progress' && message) {
+                    console.log(`[Worker Progress] ${message}`);
+                    loadingText.textContent = message;
+                    return;
+                }
+                
+                // Handle ready message
+                if (action === 'ready') {
+                    console.log('[Worker] Ready');
+                    return;
+                }
+                
+                // Handle callbacks
+                if (id && this.callbacks.has(id)) {
+                    const callback = this.callbacks.get(id);
+                    this.callbacks.delete(id);
+                    
+                    if (status === 'success') {
+                        callback.resolve({ result, completions, packages });
+                    } else {
+                        callback.reject(new Error(error || 'Worker error'));
+                    }
+                }
+            };
+            
+            this.worker.onerror = (err) => {
+                console.error('[Worker Error]', err);
+            };
+        }
+        
+        sendMessage(action, data = {}) {
+            return new Promise((resolve, reject) => {
+                const id = ++this.messageId;
+                this.callbacks.set(id, { resolve, reject });
+                this.worker.postMessage({ id, action, data });
+            });
+        }
+        
+        async load(config) {
+            return this.sendMessage('load', config);
+        }
+        
+        async install(packages) {
+            return this.sendMessage('install', { packages });
+        }
+        
+        async execute(code) {
+            return this.sendMessage('execute', { code });
+        }
+        
+        async complete(code, line, column) {
+            return this.sendMessage('complete', { code, line, column });
+        }
+        
+        async findPackages(code) {
+            return this.sendMessage('find_packages', { code });
+        }
+        
+        terminate() {
+            this.worker.terminate();
+        }
+    }
+    
+    // Theme toggle
+    function toggleTheme() {
+        const isDark = document.body.classList.contains('dark-mode');
+        
+        if (isDark) {
+            document.body.classList.remove('dark-mode');
+            document.documentElement.classList.remove('dark-mode');
+            if (monaco && editor) {
+                monaco.editor.setTheme('vs');
             }
-
-            monaco.languages.registerCompletionItemProvider('python', {
-                triggerCharacters: ['.'],
-                provideCompletionItems: async (model, position) => {
-                    console.log("[Debug] provideCompletionItems triggered (calling Python fn).");
-                    const code = model.getValue();
-                    const line = position.lineNumber; // Monaco uses 1-based lines
-                    const column = position.column - 1; // Jedi uses 0-based columns
-
-                    try {
-                        // Call the Python function asynchronously
-                        const resultsString = await pyodideCompleteFn(code, line, column);
-                        const suggestions = JSON.parse(resultsString);
-
-                        if (!suggestions || suggestions.length === 0) {
-                            console.log("[Debug] No suggestions received from Python function.");
-                            return { suggestions: [] };
-                        }
-                        console.log("[Debug] Jedi suggestions from Python fn:", suggestions);
-
-                        // Convert [name, type] list to Monaco format
-                        const monacoSuggestions = suggestions.map(([name, type]) => {
-                            let kind;
-                            switch (type) {
-                                case 'function': kind = monaco.languages.CompletionItemKind.Function; break;
-                                case 'module': kind = monaco.languages.CompletionItemKind.Module; break;
-                                case 'class': kind = monaco.languages.CompletionItemKind.Class; break;
-                                case 'instance': kind = monaco.languages.CompletionItemKind.Variable; break;
-                                case 'statement': kind = monaco.languages.CompletionItemKind.Keyword; break;
-                                default: kind = monaco.languages.CompletionItemKind.Property;
-                            }
-                            const word = model.getWordUntilPosition(position);
-                            const range = {
-                                startLineNumber: position.lineNumber,
-                                endLineNumber: position.lineNumber,
-                                startColumn: word.startColumn,
-                                endColumn: word.endColumn
-                            };
-                            return { label: name, kind: kind, insertText: name, detail: type, range: range };
-                        });
-                        return { suggestions: monacoSuggestions };
-
-                    } catch (e) {
-                        console.error("Monaco completion provider error calling Python:", e);
+            StorageManager.setTheme('light');
+        } else {
+            document.body.classList.add('dark-mode');
+            document.documentElement.classList.add('dark-mode');
+            if (monaco && editor) {
+                monaco.editor.setTheme('vs-dark');
+            }
+            StorageManager.setTheme('dark');
+        }
+    }
+    
+    // Setup template selector
+    function setupTemplateSelector() {
+        console.log("[Debug] setupTemplateSelector called.");
+        if (typeof codeTemplates === 'undefined' || !templateSelector) { 
+            console.error("[Debug] Cannot setup selector: codeTemplates or selector element is missing."); 
+            return; 
+        }
+        
+        templateSelector.innerHTML = '';
+        const defaultOption = document.createElement('option');
+        defaultOption.textContent = '— 从这里选择一个代码示例 —';
+        defaultOption.value = ''; 
+        defaultOption.disabled = true; 
+        defaultOption.selected = true;
+        templateSelector.appendChild(defaultOption);
+        
+        for (const key in codeTemplates) {
+            const option = document.createElement('option');
+            option.value = key; 
+            option.textContent = key;
+            templateSelector.appendChild(option);
+        }
+        
+        templateSelector.addEventListener('change', (event) => {
+            const selectedKey = event.target.value;
+            if (selectedKey && codeTemplates[selectedKey] && editor) { 
+                editor.setValue(codeTemplates[selectedKey]); 
+            }
+        });
+    }
+    
+    // Clear error highlights
+    function clearErrorHighlight() {
+        if (editor && errorDecorations.length > 0) {
+            errorDecorations = editor.deltaDecorations(errorDecorations, []);
+        }
+        if (monaco && editor) {
+            const model = editor.getModel();
+            if (model) {
+                monaco.editor.setModelMarkers(model, 'py', []);
+            }
+        }
+        lastErrorLine = null;
+        jumpToErrorButton.style.display = 'none';
+    }
+    
+    // Highlight error line
+    function highlightErrorLine(lineNumber) {
+        if (!editor || !monaco || !lineNumber) return;
+        
+        clearErrorHighlight();
+        lastErrorLine = lineNumber;
+        
+        const model = editor.getModel();
+        if (!model) return;
+        
+        // Add decoration
+        errorDecorations = editor.deltaDecorations([], [
+            {
+                range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+                options: {
+                    isWholeLine: true,
+                    className: 'error-line-decoration',
+                    glyphMarginClassName: 'error-line-glyph'
+                }
+            }
+        ]);
+        
+        // Add marker
+        monaco.editor.setModelMarkers(model, 'py', [
+            {
+                startLineNumber: lineNumber,
+                startColumn: 1,
+                endLineNumber: lineNumber,
+                endColumn: model.getLineMaxColumn(lineNumber),
+                message: '运行出错，详见输出区',
+                severity: monaco.MarkerSeverity.Error
+            }
+        ]);
+        
+        // Reveal line
+        editor.revealLineInCenter(lineNumber);
+        
+        // Show jump button
+        jumpToErrorButton.style.display = 'block';
+    }
+    
+    // Jump to error line
+    function jumpToError() {
+        if (editor && lastErrorLine) {
+            editor.revealLineInCenter(lastErrorLine);
+            editor.setPosition({ lineNumber: lastErrorLine, column: 1 });
+            editor.focus();
+        }
+    }
+    
+    // Run code
+    async function runCode() {
+        if (!worker || !editor) { 
+            console.warn("Worker or Editor not ready for runCode."); 
+            return; 
+        }
+        
+        const code = editor.getValue();
+        runButton.disabled = true;
+        stopButton.style.display = 'inline-block';
+        clearErrorHighlight();
+        
+        try {
+            outputElement.textContent = "🔍 分析代码依赖...\n";
+            
+            // Find packages
+            const { packages } = await worker.findPackages(code);
+            
+            if (packages && packages.length > 0) {
+                outputElement.textContent += `�� 检测到需要安装的包: ${packages.join(', ')}\n`;
+                await worker.install(packages);
+                outputElement.textContent += `✅ 包安装完成\n\n`;
+            }
+            
+            outputElement.textContent += "🚀 正在执行代码...\n";
+            
+            // Execute code
+            const { result } = await worker.execute(code);
+            
+            if (result.error) {
+                outputElement.textContent = `❌ 运行出错:\n${result.error}`;
+                if (result.errorLine) {
+                    highlightErrorLine(result.errorLine);
+                }
+            } else if (result.stderr) {
+                outputElement.textContent = result.stderr.trim();
+            } else {
+                outputElement.textContent = result.stdout.trim() || "(无输出)";
+            }
+            
+        } catch(e) {
+            console.error("Run code error:", e);
+            outputElement.textContent = `❌ 执行失败:\n${e.message || e.toString()}`;
+        } finally {
+            runButton.disabled = false;
+            stopButton.style.display = 'none';
+        }
+    }
+    
+    // Stop execution
+    function stopExecution() {
+        if (worker) {
+            // Terminate and recreate worker
+            worker.terminate();
+            outputElement.textContent += "\n\n⚠️ 执行已中断，正在重启环境...\n";
+            initWorker();
+        }
+    }
+    
+    // Clear output
+    function clearOutput() {
+        outputElement.textContent = "请点击运行按钮执行代码";
+        clearErrorHighlight();
+    }
+    
+    // Clear code
+    function clearCode() { 
+        if (editor) { 
+            editor.setValue(''); 
+        } 
+    }
+    
+    // Monaco completion provider
+    function registerMonacoCompletion() {
+        if (!monaco || !worker) { 
+            console.warn("[Debug] Cannot register completion provider: Monaco or Worker not ready.");
+            return;
+        }
+        
+        monaco.languages.registerCompletionItemProvider('python', {
+            triggerCharacters: ['.'],
+            provideCompletionItems: async (model, position) => {
+                console.log("[Debug] provideCompletionItems triggered.");
+                const code = model.getValue();
+                const line = position.lineNumber;
+                const column = position.column - 1;
+                
+                try {
+                    const { completions } = await worker.complete(code, line, column);
+                    
+                    if (!completions || completions.length === 0) {
+                        console.log("[Debug] No suggestions received.");
                         return { suggestions: [] };
                     }
+                    
+                    console.log("[Debug] Completions:", completions);
+                    
+                    const monacoSuggestions = completions.map(([name, type]) => {
+                        let kind;
+                        switch (type) {
+                            case 'function': kind = monaco.languages.CompletionItemKind.Function; break;
+                            case 'module': kind = monaco.languages.CompletionItemKind.Module; break;
+                            case 'class': kind = monaco.languages.CompletionItemKind.Class; break;
+                            case 'instance': kind = monaco.languages.CompletionItemKind.Variable; break;
+                            case 'statement': kind = monaco.languages.CompletionItemKind.Keyword; break;
+                            default: kind = monaco.languages.CompletionItemKind.Property;
+                        }
+                        
+                        const word = model.getWordUntilPosition(position);
+                        const range = {
+                            startLineNumber: position.lineNumber,
+                            endLineNumber: position.lineNumber,
+                            startColumn: word.startColumn,
+                            endColumn: word.endColumn
+                        };
+                        
+                        return { 
+                            label: name, 
+                            kind: kind, 
+                            insertText: name, 
+                            detail: type, 
+                            range: range 
+                        };
+                    });
+                    
+                    return { suggestions: monacoSuggestions };
+                    
+                } catch (e) {
+                    console.error("Monaco completion provider error:", e);
+                    return { suggestions: [] };
                 }
-            });
-            console.log("[Debug] Monaco completion provider registered (using direct Python call).");
-        }
-
-
-        // --- Main Application Logic ---
-        async function main() {
-            console.log("[Debug] main function started.");
-            try {
-                // 1. Load Pyodide
-                loadingText.textContent = "正在加载 Python 核心环境…";
-                pyodide = await loadPyodide({ indexURL: "pyodide/" });
-                console.log("[Debug] Pyodide core loaded successfully.");
-
-                // 2. ** Load jedi AND define the Python helper function **
-                loadingText.textContent = "正在加载代码提示引擎 (jedi)...";
+            }
+        });
+        
+        console.log("[Debug] Monaco completion provider registered.");
+    }
+    
+    // Initialize worker
+    async function initWorker() {
+        loadingText.textContent = "正在启动 Python 环境...";
+        
+        worker = new WorkerClient('py-worker.js');
+        
+        await worker.load({
+            pyodideUrl: 'pyodide/pyodide.js',
+            indexURL: 'pyodide/'
+        });
+        
+        outputElement.textContent = "✅ Python 环境准备就绪！";
+    }
+    
+    // Load Monaco with fallback
+    async function loadMonaco() {
+        loadingText.textContent = "正在加载编辑器...";
+        
+        // Check if require is available
+        if (typeof require === 'undefined') {
+            console.log('[Monaco] AMD loader not found, injecting local loader...');
+            
+            // Try to load local AMD loader
+            const loaderPaths = [
+                '/monaco/min/vs/loader.js',
+                '/monoca/min/vs/loader.js'
+            ];
+            
+            for (const path of loaderPaths) {
                 try {
-                    await pyodide.loadPackage("jedi");
-                    console.log("[Debug] Jedi loaded successfully.");
-
-                    // Define the Python function for completion
-                    await pyodide.runPythonAsync(`
-import json
-import jedi
-import traceback
-import sys # Make sure sys is imported
-
-# This function will be called by JavaScript
-def get_jedi_completions(code, line, column):
-    try:
-        script = jedi.Script(code, path="example.py")
-        completions = script.complete(line, column)
-        # Filter out private members
-        result = [[c.name, c.type] for c in completions if not c.name.startswith("_")]
-        return json.dumps(result) # Return JSON string
-    except Exception as e:
-        print(f"Jedi completion error: {e}", file=sys.stderr) # Print error to stderr
-        traceback.print_exc(file=sys.stderr)
-        return "[]" # Return empty JSON array on error
-                    `);
-                    // Get the JS proxy for the Python function
-                    pyodideCompleteFn = pyodide.globals.get('get_jedi_completions');
-                    if (pyodideCompleteFn) {
-                        console.log("[Debug] Python completion function 'get_jedi_completions' is ready.");
-                    } else {
-                        console.error("[Debug] Failed to get Python completion function proxy!");
-                    }
-
-                } catch (jediErr) {
-                    console.warn("[Debug] Failed to load/setup jedi:", jediErr);
-                    loadingText.textContent += " (代码提示可能不可用)";
+                    await new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        script.src = path;
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        document.head.appendChild(script);
+                    });
+                    console.log(`[Monaco] Loaded AMD loader from ${path}`);
+                    break;
+                } catch(e) {
+                    console.warn(`[Monaco] Failed to load loader from ${path}`);
                 }
-
-                outputElement.textContent = "✅ Python 环境准备就绪！";
-
-            } catch (err) {
-                outputElement.textContent = `❌ Python 环境加载失败: ${err.message || err.toString()}`;
-                console.error("Pyodide loading failed:", err);
-                document.body.classList.remove('loading');
-                return;
             }
-
-            // 3. Initialize Monaco Editor
+        }
+        
+        if (typeof require === 'undefined') {
+            throw new Error('Failed to load AMD loader for Monaco');
+        }
+        
+        // Try multiple CDN sources with fallback to local
+        const basePaths = [
+            'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs',
+            'https://unpkg.com/monaco-editor@0.47.0/min/vs',
+            '/monaco/min/vs',
+            '/monoca/min/vs'
+        ];
+        
+        for (const basePath of basePaths) {
             try {
-                loadingText.textContent = "正在初始化编辑器 (Monaco)...";
-                if (typeof require === 'undefined') { throw new Error("Monaco loader.js failed to load."); }
-                require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs' }});
-                window.MonacoEnvironment = undefined;
-                require(['vs/editor/editor.main'], function () {
-                    console.log("[Debug] Monaco main module loaded successfully.");
-                    monaco = window.monaco;
-                    try {
-                        editor = monaco.editor.create(monacoContainer, {
-                            value: initialCode, language: 'python', theme: 'vs',
-                            automaticLayout: true,
-                            fontFamily: "'JetBrains Mono', 'LXGW WenKai Screen', monospace",
-                            fontSize: 16, lineHeight: 26,
-                            minimap: { enabled: false }, wordWrap: 'on',
-                            scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
-                            quickSuggestions: { other: true, comments: true, strings: true },
-                            suggestOnTriggerCharacters: true, // Enable default suggestions
-                        });
-                        console.log("[Debug] Monaco editor created successfully.");
-
-                        // ** Register the completion provider AFTER editor is created **
-                        registerMonacoCompletion();
-
-                        setupTemplateSelector();
-                        runButton.disabled = false;
-                        loadingText.textContent = '加载完成!';
-                        document.body.classList.remove('loading');
-                        setTimeout(()=> loadingText.style.display = 'none', 1000);
-
-                    } catch (createErr) { /* ... error handling ... */ }
-                }, function(err) { /* ... error handling ... */ });
-            } catch (editorErr) { /* ... error handling ... */ }
-        }
-
-        // --- Event Listeners ---
-        runButton.addEventListener('click', runCode);
-        clearCodeButton.addEventListener('click', clearCode);
-        clearOutputButton.addEventListener('click', clearOutput);
-
-        // --- Start App ---
-        main();
-
-        // --- Function Definitions (ensure they are accessible) ---
-        function setupTemplateSelector() {
-            console.log("[Debug] setupTemplateSelector called.");
-            if (typeof codeTemplates === 'undefined' || !templateSelector) { console.error("[Debug] Cannot setup selector: codeTemplates or selector element is missing."); return; }
-            templateSelector.innerHTML = '';
-            const defaultOption = document.createElement('option');
-            defaultOption.textContent = '— 从这里选择一个代码示例 —';
-            defaultOption.value = ''; defaultOption.disabled = true; defaultOption.selected = true;
-            templateSelector.appendChild(defaultOption);
-            for (const key in codeTemplates) {
-                const option = document.createElement('option');
-                option.value = key; option.textContent = key;
-                templateSelector.appendChild(option);
-            }
-            templateSelector.addEventListener('change', (event) => {
-                const selectedKey = event.target.value;
-                if (selectedKey && codeTemplates[selectedKey] && editor) { editor.setValue(codeTemplates[selectedKey]); }
-            });
-        }
-        async function installMissingPackages(code) {
-            if (!pyodide) return;
-            console.log("[Debug] Ensuring micropip is loaded...");
-            await pyodide.loadPackage("micropip");
-            const micropip = pyodide.pyimport("micropip");
-            console.log("[Debug] micropip ready.");
-            const importRegex = /(?:^|\n)\s*import\s+([a-zA-Z_][a-zA-Z0-9_.]*)|(?:^|\n)\s*from\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+import/g;
-            const pkgsToInstall = new Set();
-            let match;
-            const loadedPackages = pyodide.loadedPackages;
-            const sysModules = await pyodide.runPythonAsync('import sys; list(sys.modules.keys())');
-            const stdlibModules = pyodide.pyimport("sys").stdlib_module_names;
-            console.log("[Debug] Scanning code for imports...");
-            while ((match = importRegex.exec(code)) !== null) {
-                const moduleName = (match[1] || match[2]).split('.')[0];
-                if (moduleName && !loadedPackages[moduleName] && !sysModules.includes(moduleName) && !stdlibModules.has(moduleName)) {
-                    console.log(`[Debug] Detected potential package to install: ${moduleName}`);
-                    pkgsToInstall.add(moduleName);
+                console.log(`[Monaco] Trying to load from: ${basePath}`);
+                
+                require.config({ paths: { 'vs': basePath } });
+                
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        reject(new Error('Monaco load timeout'));
+                    }, 5000);
+                    
+                    require(['vs/editor/editor.main'], function() {
+                        clearTimeout(timeout);
+                        resolve();
+                    }, function(err) {
+                        clearTimeout(timeout);
+                        reject(err);
+                    });
+                });
+                
+                console.log(`[Monaco] Successfully loaded from: ${basePath}`);
+                break;
+            } catch(e) {
+                console.warn(`[Monaco] Failed to load from ${basePath}:`, e.message);
+                if (basePath === basePaths[basePaths.length - 1]) {
+                    throw new Error('All Monaco sources failed');
                 }
             }
-            if (pkgsToInstall.size > 0) {
-                const pkgList = Array.from(pkgsToInstall);
-                outputElement.textContent = `🚀 检测到需安装模块: ${pkgList.join(', ')}。正在尝试安装...`;
-                console.log("[Debug] Attempting to install packages via micropip:", pkgList);
-                try {
-                    await micropip.install(pkgList);
-                    outputElement.textContent = `✅ 模块 ${pkgList.join(', ')} 安装成功。`;
-                    console.log("[Debug] micropip install successful for:", pkgList);
-                } catch (installErr) {
-                    console.error("[Debug] micropip install failed:", installErr);
-                    let errMsg = installErr.message || installErr.toString();
-                    if (pyodide && installErr.name === 'PythonError') {
-                        try {
-                            pyodide.runPython("traceback.print_exc(file=sys.stderr)");
-                            let pyTraceback = pyodide.runPython("sys.stderr.getvalue()");
-                            if (pyTraceback) { errMsg = pyTraceback; }
-                        } catch (tbErr) { console.error("Failed to get Python traceback for install error:", tbErr); }
-                    }
-                    if (errMsg.includes('Can\'t find a pure Python source distribution') || errMsg.includes('No matching distribution found')) {
-                        errMsg = `模块 '${pkgList.join(', ')}' 无法找到或不支持。\n(错误详情: ${installErr.message || installErr})`;
-                    }
-                    outputElement.textContent = `❌ 模块安装失败: \n${errMsg}`;
-                    micropip.destroy();
-                    throw new Error("Package installation failed");
-                }
-            } else {
-                console.log("[Debug] No new packages detected for installation.");
-            }
-            micropip.destroy();
         }
-        async function runCode() {
-            if (!pyodide || !editor) { console.warn("Pyodide or Editor not ready for runCode."); return; }
-            const code = editor.getValue();
-            runButton.disabled = true;
-            outputElement.textContent = "🚀 准备运行环境...";
-            try {
-                await installMissingPackages(code); // 调用自动安装
-
-                outputElement.textContent = "🚀 正在执行代码...";
-                pyodide.runPython(`import sys, io, traceback; sys.stdout = io.StringIO(); sys.stderr = io.StringIO()`);
-                await pyodide.runPythonAsync(code);
-                const stdout = pyodide.runPython("sys.stdout.getvalue()");
-                const stderr = pyodide.runPython("sys.stderr.getvalue()");
-                if(stderr) { outputElement.textContent = stderr.trim(); }
-                else { outputElement.textContent = stdout.trim() || "(无输出)"; }
-
-            } catch (e) {
-                console.error("Run code error (raw JS error):", e);
-                let errorMsg = e.message || e.toString();
-                if (e.message !== "Package installation failed" && pyodide && (e.name === "PythonError" || e.constructor.name === "PythonError")) {
-                    try {
-                        pyodide.runPython("traceback.print_exc(file=sys.stderr)");
-                        let pyTraceback = pyodide.runPython("sys.stderr.getvalue()");
-                        if (pyTraceback) { errorMsg = pyTraceback; }
-                    } catch (tbErr) { console.error("Failed to get Python traceback:", tbErr); }
-                }
-                if (e.message !== "Package installation failed") {
-                    outputElement.textContent = `❌ 运行出错:\n${errorMsg}`;
-                }
-            } finally {
-                runButton.disabled = false;
-            }
+        
+        monaco = window.monaco;
+        
+        // Create editor with current theme
+        const isDark = document.body.classList.contains('dark-mode');
+        editor = monaco.editor.create(monacoContainer, {
+            value: initialCode, 
+            language: 'python', 
+            theme: isDark ? 'vs-dark' : 'vs',
+            automaticLayout: true,
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 16, 
+            lineHeight: 26,
+            minimap: { enabled: false }, 
+            wordWrap: 'on',
+            scrollbar: { 
+                verticalScrollbarSize: 10, 
+                horizontalScrollbarSize: 10 
+            },
+            quickSuggestions: { 
+                other: true, 
+                comments: true, 
+                strings: true 
+            },
+            suggestOnTriggerCharacters: true,
+        });
+        
+        console.log("[Debug] Monaco editor created successfully.");
+        
+        // Register completion provider
+        registerMonacoCompletion();
+        
+        // Setup template selector
+        setupTemplateSelector();
+    }
+    
+    // Tooltip position adjustment
+    function adjustTooltipPosition(button) {
+        const rect = button.getBoundingClientRect();
+        const spaceAbove = rect.top;
+        const spaceBelow = window.innerHeight - rect.bottom;
+        
+        if (spaceBelow < 50 && spaceAbove > spaceBelow) {
+            button.setAttribute('data-tooltip-pos', 'top');
+        } else {
+            button.setAttribute('data-tooltip-pos', 'bottom');
         }
-        function clearOutput() {
-            const outputElement = document.getElementById('output');
-            outputElement.textContent = "请点击运行运行代码";
+    }
+    
+    // Event listeners
+    runButton.addEventListener('click', runCode);
+    stopButton.addEventListener('click', stopExecution);
+    clearCodeButton.addEventListener('click', clearCode);
+    clearOutputButton.addEventListener('click', clearOutput);
+    themeToggle.addEventListener('click', toggleTheme);
+    jumpToErrorButton.addEventListener('click', jumpToError);
+    
+    // Tooltip position adjustment on hover
+    document.querySelectorAll('.icon-button[data-tooltip]').forEach(button => {
+        button.addEventListener('mouseenter', () => adjustTooltipPosition(button));
+        button.addEventListener('focus', () => adjustTooltipPosition(button));
+    });
+    
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+        try {
+            await navigator.serviceWorker.register('sw.js');
+            console.log('[SW] Service Worker registered');
+        } catch(err) {
+            console.warn('[SW] Service Worker registration failed:', err);
         }
-        function clearCode() { if (editor) { editor.setValue(''); } }
-
-    }); // End of DOMContentLoaded
+    }
+    
+    // Main initialization
+    try {
+        await initWorker();
+        await loadMonaco();
+        
+        runButton.disabled = false;
+        loadingText.textContent = '加载完成!';
+        document.body.classList.remove('loading');
+        setTimeout(() => {
+            const loaderOverlay = document.getElementById('loader-overlay');
+            if (loaderOverlay) loaderOverlay.style.display = 'none';
+        }, 1000);
+        
+    } catch(err) {
+        console.error("Initialization error:", err);
+        outputElement.textContent = `❌ 初始化失败: ${err.message || err.toString()}`;
+        document.body.classList.remove('loading');
+    }
+});
 </script>
 </body>
 </html>
