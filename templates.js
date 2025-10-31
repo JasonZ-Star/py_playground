@@ -9,10 +9,7 @@
  */
 
 const codeTemplates = {
-    "pandas-1": 'import pandas as pd\nfrom pyodide.http import pyfetch\nimport io\nimport asyncio\n\nasync def load_csv_from_url(url):\n    print(f" [Helper] 正在从 {url} 下载数据...")\n    try:\n        resp = await pyfetch(url, timeout=15000)\n        if resp.status != 200:\n            print(f"❌ [Helper] 下载失败! 状态码: {resp.status}")\n            raise RuntimeError("download failed")\n        csv_text = await resp.string()\n        print("✅ 下载成功")\n        # 直接返回 DataFrame，便于后续补全\n        return pd.read_csv(io.StringIO(csv_text))\n    except Exception as e:\n        print(f"⚠️ [Helper] 网络不可用或下载失败: {e}")\n        print("⚠️ [Helper] 使用本地备用数据 /data/boston_housing.csv")\n        try:\n            return pd.read_csv("/data/boston_housing.csv")\n        except Exception as ee:\n            print(f"❌ 本地数据读取失败: {ee}")\n            return pd.DataFrame()\n\nurl = \'https://playg.jasonz.top/data/boston_housing.csv\' \n\n# 加载数据（优先网络，失败回退本地）\nboston_housing = await load_csv_from_url(url)\nprint(boston_housing.head())\n\n# 在新行输入 \'boston_housing.\' 测试 DataFrame 实例补全\n',
-
-    "pandas-2": '# 第二章配套练习\n\nimport pandas as pd\n\n# 导入本地数据 boston_housing.csv（已预载到 /data）\nboston_housing = pd.read_csv("/data/boston_housing.csv")\nprint(boston_housing.head())\n\n# 在新行输入 \'boston_housing.\' 测试 DataFrame 补全，然后继续你的分析...\n\n',
-
+    "pandas-1": 'import pandas as pd\nfrom pyodide.http import pyfetch\nimport io\nimport asyncio\n\nasync def load_csv_from_url(url):\n\n    print(f" [Helper] 正在从 {url} 下载数据...")\n    try:\n        response = await pyfetch(url)\n        if response.status != 200:\n            print(f"❌ [Helper] 下载失败! 状态码: {response.status}")\n            # 返回一个空 DataFrame\n            return pd.DataFrame()\n\n        csv_text = await response.string()\n        f = io.StringIO(csv_text)\n        print("下载成功")\n        return f\n\n    except Exception as e:\n        print(f"❌ [Helper] 处理数据时出错:")\n        print(f"错误详情: {e}")\n        return pd.DataFrame() # 返回一个空 DataFrame\n\n\nurl = \'https://playg.jasonz.top/data/boston_housing.csv\' \n\n# 这是数据，试着用Pandas导入吧！\nboston_housing = await load_csv_from_url(url)\n',
     "Hello World": 'print("Hello, World!")',
 
     "列表操作": 'nums = [1, 2, 3, 4, 5]\nprint(f"总和: {sum(nums)}")\nprint(f"平均值: {sum(nums)/len(nums)}")\nprint(f"最大值: {max(nums)}")\nprint(f"最小值: {min(nums)}")',
@@ -37,7 +34,7 @@ const codeTemplates = {
 
     "列表推导式": 'print("=== 列表推导式 ===")\n\n# 创建平方数列表\nsquares = [x**2 for x in range(1, 6)]\nprint(f"平方数: {squares}")\n\n# 创建偶数列表\nevens = [x for x in range(1, 11) if x % 2 == 0]\nprint(f"偶数: {evens}")\n\n# 字符串处理\ntext = "hello"\nupper_chars = [c.upper() for c in text]\nprint(f"大写字符: {upper_chars}")',
 
-    "λ函数": 'print("=== Lambda 函数 ===")\n\n# 简单的 lambda 函数\nsquare = lambda x: x ** 2\nprint(f"5的平方: {square(5)}")\n\n# 配合 map 使用\nnums = [1, 2, 3, 4, 5]\nsquared = list(map(lambda x:x**2, nums))\nprint(f"映射后: {squared}")\n\n# 配合 filter 使用\nevens = list(filter(lambda x: x % 2 == 0, nums))\nprint(f"过滤后: {evens}")',
+    "λ函数": 'print("=== Lambda 函数 ===")\n\n# 简单的 lambda 函数\nsquare = lambda x: x ** 2\nprint(f"5的平方: {square(5)}")\n\n# 配合 map 使用\nnums = [1, 2, 3, 4, 5]\nsquared = list(map(lambda x: x**2, nums))\nprint(f"映射后: {squared}")\n\n# 配合 filter 使用\nevens = list(filter(lambda x: x % 2 == 0, nums))\nprint(f"过滤后: {evens}")',
 
     "字典推导式": 'print("=== 字典推导式 ===")\n\n# 创建平方数字典\nsquares_dict = {x: x**2 for x in range(1, 6)}\nprint(f"平方数字典: {squares_dict}")\n\n# 条件推导式\neven_dict = {x: x**2 for x in range(1, 11) if x % 2 == 0}\nprint(f"偶数平方: {even_dict}")',
 
