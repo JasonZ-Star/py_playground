@@ -21,7 +21,7 @@ const CORE_ASSETS = [
     './monaco/min/vs/language/css/css.worker.js',
     './monaco/min/vs/language/html/html.worker.js',
     './monaco/min/vs/language/typescript/ts.worker.js',
-    // Alternative spelling (monoca typo mentioned in requirements)
+    // Alternative spelling (intentional support for common directory naming typo)
     './monoca/min/vs/loader.js',
     // Pyodide core
     './pyodide/pyodide.js',

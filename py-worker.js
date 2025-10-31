@@ -254,8 +254,12 @@ sys.stderr = io.StringIO()
                 errorMsg = traceback;
                 
                 // Extract error line from traceback
-                // Look for pattern: File "<exec>", line N
-                const lineMatch = traceback.match(/File\s+"<[^"]+>",\s+line\s+(\d+)/);
+                // Try multiple patterns to handle different Python execution contexts
+                // Pattern 1: File "<exec>", line N  (most common)
+                // Pattern 2: File "<string>", line N
+                // Pattern 3: File "example.py", line N
+                let lineMatch = traceback.match(/File\s+"<[^"]+>",\s+line\s+(\d+)/) ||
+                               traceback.match(/File\s+"[^"]+",\s+line\s+(\d+)/);
                 if (lineMatch) {
                     errorLine = parseInt(lineMatch[1], 10);
                 }

@@ -38,6 +38,7 @@ async def load_csv_from_url(url):
         return pd.read_csv("/data/boston_housing.csv")
 
 # 加载波士顿房价数据集
+# 注意：外部 URL 可能不可用，这种情况下会自动回退到本地数据
 df = await load_csv_from_url("https://raw.githubusercontent.com/selva86/datasets/master/BostonHousing.csv")
 
 print("\\n数据集预览:")
