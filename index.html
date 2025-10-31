@@ -238,7 +238,7 @@
 
     class Notification { static show(msg,type='info',duration=3000){ const n=document.createElement('div'); n.className=`notification ${type}`; n.textContent=msg; document.body.appendChild(n); setTimeout(()=>{ n.style.animation='slideOut .2s ease-out forwards'; setTimeout(()=>n.remove(),200); },duration); } }
 
-    class StorageManager { static KEY_CODE='pythonEditorCode'; static KEY_THEME='pythonEditorTheme'; static saveCode(code){ try{ localStorage.setItem(this.KEY_CODE,code);}catch{}} static getCode(){ try{ return localStorage.getItem(this.KEY_CODE)||'print("Hello, World!")'; }catch{ return 'print("Hello, World!")'; } } static getTheme(){ try{ return localStorage.getItem(this.KEY_THEME)||'light'; }catch{ return 'light'; } } static setTheme(t){ try{ localStorage.setItem(this.KEY_THEME,t);}catch{} } }
+    class StorageManager { static KEY_CODE='pythonEditorCode'; static KEY_THEME='pythonEditorTheme'; static saveCode(code){ try{ localStorage.setItem(this.KEY_CODE,code);}catch{}} static getCode(){ try{ return localStorage.getItem(this.KEY_CODE)||'print("Hello, World!")'; }catch{ return 'print("Hello, World!")'; } } static getTheme(){ try{ const v = localStorage.getItem(this.KEY_THEME); return v === null ? null : v; }catch{ return null; } } static setTheme(t){ try{ localStorage.setItem(this.KEY_THEME,t);}catch{} } }
 
     class EditorManager { constructor(containerId, initialCode){ this.container=document.getElementById(containerId); this.editor=null; this.initialCode=initialCode; this.changeListeners=[]; }
         async initialize(monaco){ return new Promise((resolve)=>{ const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint; const fontSize=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop; const lineHeight=isMobile?CONFIG.EDITOR.lineHeight.mobile:CONFIG.EDITOR.lineHeight.desktop; this.editor = monaco.editor.create(this.container, {
@@ -335,9 +335,10 @@
                 this.updateLoadingText('正在初始化编辑器…');
                 this.updateProgress('加载 Monaco 编辑器...');
                 await this.loadMonaco();
-                const prefersDark= window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                const saved= StorageManager.getTheme && StorageManager.getTheme();
-                const dark = (saved ? saved==='dark' : prefersDark);
+                // Use initial html.dark-mode as the single source of truth unless user saved preference exists
+                const saved = StorageManager.getTheme && StorageManager.getTheme();
+                const initialDark = document.documentElement.classList.contains('dark-mode');
+                const dark = (saved === null) ? initialDark : (saved === 'dark');
                 if(dark){
                     document.body.classList.add('dark-mode');
                     document.documentElement.classList.add('dark-mode');
@@ -450,6 +451,13 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+        // Sync body class with html early to keep loader and content consistent
+        if (document.documentElement.classList.contains('dark-mode')) {
+            document.body.classList.add('dark-mode');
+        } else {
+            document.body.classList.remove('dark-mode');
+        }
+
         const urlParams=new URLSearchParams(window.location.search); let codeLoadedFromUrl=false; if(urlParams.has('template')){ const k=urlParams.get('template'); if(typeof codeTemplates!=='undefined' && codeTemplates[k]){ StorageManager.saveCode(codeTemplates[k]); codeLoadedFromUrl=true; } }
         if(!codeLoadedFromUrl && urlParams.has('code')){ try{ const decoded=decodeURIComponent(escape(atob(urlParams.get('code')))); StorageManager.saveCode(decoded); codeLoadedFromUrl=true; }catch(e){ console.warn('Failed to decode shared code:',e);} }
         const app = new PythonREPL();
