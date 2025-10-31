@@ -10,12 +10,14 @@
 // ========================================
 let pyodide = null;
 let jediCompletionFn = null;
+let interruptView = null;
 const PYODIDE_CONFIG = {
     timeoutMs: 30000,
     jediTimeoutMs: 10000,
 };
 const stdlibModules = new Set();
 const installed = new Set();
+let extractImportsFn = null;
 
 
 // ========================================
@@ -41,6 +43,19 @@ async function loadPyodideInstance(indexURL) {
             }
         } finally {
             try { namesProxy && namesProxy.destroy && namesProxy.destroy(); } catch {}
+        }
+
+        // 预载常用数据到虚拟文件系统
+        try {
+            await pyodide.FS.mkdirTree('/data');
+            const resp = await fetch('data/boston_housing.csv');
+            if (resp.ok) {
+                const buf = new Uint8Array(await resp.arrayBuffer());
+                pyodide.FS.writeFile('/data/boston_housing.csv', buf);
+            }
+        } catch (e) {
+            // 数据预载失败非致命
+            console.warn('[Worker] Preload data failed:', e.message || e);
         }
 
         return { success: true };
@@ -99,6 +114,30 @@ async function getCompletions(payload) {
         if (!/import\s+numpy\s+as\s+np/.test(code) && /(^|\W)np\s*\./.test(code)) preface += 'import numpy as np\n';
         if (!/import\s+matplotlib\.pyplot\s+as\s+plt/.test(code) && /(^|\W)plt\s*\./.test(code)) preface += 'import matplotlib.pyplot as plt\n';
         if (!/import\s+seaborn\s+as\s+sns/.test(code) && /(^|\W)sns\s*\./.test(code)) preface += 'import seaborn as sns\n';
+
+        // 基于光标变量的最小类型引导
+        try {
+            const lines = code.split('\n');
+            const before = (lines[line-1] || '').slice(0, Math.max(0, column));
+            const m = before.match(/([A-Za-z_][A-Za-z0-9_]*)\s*\.$/);
+            if (m) {
+                const varName = m[1];
+                // 搜索赋值来源
+                const assignRe = new RegExp('^\\s*' + varName + '\\s*=\\s*(.+)$', 'm');
+                const mm = code.match(assignRe);
+                if (mm) {
+                    const rhs = mm[1];
+                    if (/pd\s*\.\s*DataFrame\s*\(/.test(rhs)) {
+                        if (!/import\s+pandas\s+as\s+pd/.test(preface + code)) preface = 'import pandas as pd\n' + preface;
+                        preface += `${varName} = pd.DataFrame()\n`;
+                    } else if (/(np|numpy)\s*\.\s*array\s*\(/.test(rhs)) {
+                        if (!/import\s+numpy\s+as\s+np/.test(preface + code)) preface = 'import numpy as np\n' + preface;
+                        preface += `${varName} = np.array([])\n`;
+                    }
+                }
+            }
+        } catch {}
+
         const analysisCode = preface ? preface + '\n' + code : code;
 
         const completionPromise = jediCompletionFn(analysisCode, line, column);
@@ -140,30 +179,43 @@ async function warmupCompletion(moduleName) {
 async function findPackages(payload) {
     const { code } = payload;
     const pkgsToInstall = new Set();
-    const importRegex = /(?:^|\n)\s*import\s+([a-zA-Z_][a-zA-Z0-9_.]*)|(?:^|\n)\s*from\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+import/g;
-    let match;
     try {
+        await ensureAstHelper();
         const loadedPackages = pyodide.loadedPackages;
         const sysModules = await pyodide.runPythonAsync('list(sys.modules.keys())');
-        while ((match = importRegex.exec(code)) !== null) {
-            const moduleName = (match[1] || match[2]).split('.')[0];
-            if (moduleName && !loadedPackages[moduleName] && !sysModules.includes(moduleName) && !stdlibModules.has(moduleName) && !installed.has(moduleName)) {
+
+        // 通过 AST 获取顶级包列表
+        let pkgJson = '[]';
+        try {
+            pkgJson = extractImportsFn(code);
+        } catch (e) {
+            // AST 失败时退化为空列表
+        }
+        const topPkgs = JSON.parse(pkgJson || '[]');
+        for (const moduleName of topPkgs) {
+            if (moduleName &&
+                !loadedPackages[moduleName] &&
+                !sysModules.includes(moduleName) &&
+                !stdlibModules.has(moduleName) &&
+                !installed.has(moduleName)) {
                 pkgsToInstall.add(moduleName);
             }
         }
-        // 简单别名启发式
-        const lowered = code;
-        const needPandas = /(^|\W)pd\s*\./.test(lowered) && !/import\s+pandas\s+as\s+pd/.test(lowered);
-        const needNumpy  = /(^|\W)np\s*\./.test(lowered) && !/import\s+numpy\s+as\s+np/.test(lowered);
-        const needMat    = /(^|\W)plt\s*\./.test(lowered) && !/import\s+matplotlib\.pyplot\s+as\s+plt/.test(lowered);
-        const needSeaborn= /(^|\W)sns\s*\./.test(lowered) && !/import\s+seaborn\s+as\s+sns/.test(lowered);
+
+        // 别名启发式：处理未显式导入但使用了常见别名的情况
+        const needPandas = /(^|\W)pd\s*\./.test(code) && !/import\s+pandas(\s+as\s+pd|\s*$)/.test(code);
+        const needNumpy  = /(^|\W)np\s*\./.test(code) && !/import\s+numpy(\s+as\s+np|\s*$)/.test(code);
+        const needMat    = /(^|\W)plt\s*\./.test(code) && !/import\s+matplotlib\.pyplot(\s+as\s+plt|\s*$)/.test(code);
+        const needSeaborn= /(^|\W)sns\s*\./.test(code) && !/import\s+seaborn(\s+as\s+sns|\s*$)/.test(code);
         if (needPandas) pkgsToInstall.add('pandas');
         if (needNumpy) pkgsToInstall.add('numpy');
         if (needMat) pkgsToInstall.add('matplotlib');
         if (needSeaborn) pkgsToInstall.add('seaborn');
+
     } catch (e) {
         console.warn('[Worker] Error finding packages:', e);
     }
+
     return { success: true, packages: Array.from(pkgsToInstall) };
 }
 
@@ -266,6 +318,7 @@ sys.stderr = io.StringIO()
     } catch (e) {
         const executionTime = ((Date.now() - startTime) / 1000).toFixed(3);
         let errorMsg = e.message || String(e);
+        let errLine = null;
 
         if (e.name === 'PythonError' || e.constructor?.name === 'PythonError') {
             try {
@@ -273,16 +326,28 @@ sys.stderr = io.StringIO()
 import sys, io, traceback
 if not isinstance(sys.stderr, io.StringIO):
     sys.stderr = io.StringIO()
+# 打印完整回溯
 traceback.print_exc(file=sys.stderr)
+# 提取最后一帧行号
+_lno = None
+try:
+    _tb = sys.exc_info()[2]
+    _stk = traceback.extract_tb(_tb)
+    if _stk:
+        _lno = _stk[-1].lineno
+except Exception:
+    _lno = None
                 `);
                 errorMsg = pyodide.runPython('sys.stderr.getvalue()');
+                try { errLine = pyodide.runPython('_lno'); } catch {}
             } catch {}
         }
 
         return {
             success: false,
             output: `❌ 错误:\n${errorMsg}`,
-            time: executionTime
+            time: executionTime,
+            line: (typeof errLine === 'number' ? errLine : null)
         };
     }
 }
@@ -306,6 +371,26 @@ self.onmessage = async (e) => {
 
             case 'init_jedi':
                 responsePayload = await initJedi();
+                break;
+
+            case 'setup_interrupt':
+                try {
+                    const { sab } = payload || {};
+                    if (sab) {
+                        interruptView = new Int32Array(sab);
+                        // 将中断缓冲区传给 pyodide
+                        // 若浏览器不支持 SAB，此路径不会执行
+                        // 这里不会抛错，但 pyodide 可能在某些版本不暴露 setInterruptBuffer
+                        if (pyodide?.setInterruptBuffer) {
+                            pyodide.setInterruptBuffer(interruptView);
+                        }
+                        responsePayload = { success: true };
+                    } else {
+                        responsePayload = { success: false, error: 'No SAB provided' };
+                    }
+                } catch (err) {
+                    responsePayload = { success: false, error: err.message };
+                }
                 break;
 
             case 'find_packages':
@@ -340,3 +425,32 @@ self.onmessage = async (e) => {
         });
     }
 };
+
+/**
+ * 确保 AST 辅助函数可用
+ * 定义 Python 辅助函数 _extract_top_packages via ast.parse
+ * 并缓存其 PyProxy 以供重用
+ */
+async function ensureAstHelper() {
+    if (extractImportsFn) return;
+    await pyodide.runPythonAsync(`
+import ast, json
+
+def _extract_top_packages(code):
+    try:
+        tree = ast.parse(code)
+    except Exception:
+        return json.dumps([])
+    pkgs = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name:
+                    pkgs.add(alias.name.split('.')[0])
+        elif isinstance(node, ast.ImportFrom):
+            if getattr(node, 'module', None):
+                pkgs.add(node.module.split('.')[0])
+    return json.dumps(sorted(pkgs))
+    `);
+    extractImportsFn = pyodide.globals.get('_extract_top_packages');
+}
