@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python在线运行 - UI Demo</title>
+    
+    <!-- Early theme initialization -->
+    <script>
+        (function(){
+            try {
+                var t = localStorage.getItem('pythonEditorTheme');
+                var dark = t ? (t === 'dark') : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if(dark){ document.documentElement.classList.add('dark-mode'); }
+            } catch(e) {}
+        })();
+    </script>
+    
+    <style>
+        /* Theme CSS Variables */
+        :root {
+            --bg-primary: #f7f7f7;
+            --bg-secondary: #fff;
+            --text-primary: #333;
+            --text-secondary: #666;
+            --border-color: #ddd;
+            --button-run: #007bff;
+            --button-run-hover: #0056b3;
+            --button-clear: #6c757d;
+            --button-clear-hover: #5a6268;
+            --button-danger: #dc3545;
+            --button-danger-hover: #c82333;
+            --output-bg: #f9f9f9;
+            --error-line-bg: rgba(255, 0, 0, 0.1);
+        }
+        
+        .dark-mode {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #252526;
+            --text-primary: #d4d4d4;
+            --text-secondary: #999;
+            --border-color: #3e3e3e;
+            --button-run: #0e639c;
+            --button-run-hover: #1177bb;
+            --button-clear: #555;
+            --button-clear-hover: #666;
+            --button-danger: #c5374b;
+            --button-danger-hover: #d44658;
+            --output-bg: #1e1e1e;
+            --error-line-bg: rgba(255, 0, 0, 0.2);
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0; 
+            background-color: var(--bg-primary); 
+            color: var(--text-primary);
+            overflow: hidden;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        h2 { text-align: center; color: var(--text-primary); font-size: 24px; margin: 20px 0; }
+        
+        #app-container {
+            display: flex; flex-direction: column;
+            height: 100vh; padding: 20px; box-sizing: border-box;
+        }
+        
+        .header-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .playground-wrapper {
+            display: flex; flex: 1; gap: 20px; overflow: hidden;
+        }
+        
+        .panel {
+            background: var(--bg-secondary); 
+            padding: 20px; 
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex; flex-direction: column;
+            width: 100%;
+        }
+        
+        .editor-panel { flex-basis: 60%; }
+        .output-panel { flex-basis: 40%; }
+        
+        .mock-editor {
+            flex: 1;
+            min-height: 150px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+            background: var(--bg-secondary);
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .error-line {
+            background: var(--error-line-bg);
+            border-left: 3px solid #ff0000;
+            padding-left: 5px;
+        }
+        
+        #template-selector { 
+            width: 100%; 
+            padding: 8px; 
+            border-radius: 4px; 
+            border: 1px solid var(--border-color); 
+            font-size: 14px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            margin: 10px 0;
+        }
+        
+        .button-wrapper { 
+            display: flex; 
+            justify-content: center; 
+            gap: 15px; 
+            margin-top: 15px; 
+        }
+        
+        .action-button, .icon-button { 
+            padding: 10px 20px;
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            transition: all 0.3s; 
+            color: white;
+        }
+        
+        .icon-button {
+            min-width: 40px;
+            height: 40px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        
+        #run-button { background-color: var(--button-run); }
+        #run-button:hover { background-color: var(--button-run-hover); }
+        
+        #clear-output-button { background-color: var(--button-clear); }
+        #clear-output-button:hover { background-color: var(--button-clear-hover); }
+        
+        #clear-code-button { background-color: var(--button-danger); }
+        #clear-code-button:hover { background-color: var(--button-danger-hover); }
+        
+        #theme-toggle { 
+            background-color: var(--button-clear); 
+        }
+        #theme-toggle:hover { 
+            background-color: var(--button-clear-hover); 
+        }
+        
+        #jump-to-error {
+            background-color: #ff9800;
+            width: 100%;
+            margin-top: 10px;
+        }
+        #jump-to-error:hover {
+            background-color: #e68900;
+        }
+        
+        #output { 
+            flex: 1; 
+            border: 1px solid var(--border-color); 
+            background: var(--output-bg); 
+            color: var(--text-primary);
+            padding: 10px; 
+            white-space: pre-wrap; 
+            word-wrap: break-word; 
+            border-radius: 4px; 
+            overflow-y: auto; 
+            font-family: 'Courier New', monospace; 
+            font-size: 14px; 
+            line-height: 1.6; 
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin: 5px 5px 5px 0;
+        }
+        
+        .badge-success { background: #28a745; color: white; }
+        .badge-info { background: #17a2b8; color: white; }
+        .badge-warning { background: #ffc107; color: black; }
+        .badge-danger { background: #dc3545; color: white; }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <div class="header-controls">
+        <h2>🐍 Python 在线运行 - UI Demo</h2>
+        <button id="theme-toggle" class="icon-button" title="切换主题">
+            🌓
+        </button>
+    </div>
+    
+    <div class="playground-wrapper">
+        <div class="panel editor-panel">
+            <h3>代码编辑器</h3>
+            <select id="template-selector">
+                <option>— 选择示例代码 —</option>
+                <option>hello - Hello World</option>
+                <option>loop - 循环示例</option>
+                <option>pandas-1 - Pandas 网络示例</option>
+                <option>numpy_test - NumPy 测试</option>
+            </select>
+            <div class="mock-editor">
+<span style="color: #0000ff;">import</span> pandas <span style="color: #0000ff;">as</span> pd
+
+<span style="color: #008000;"># 读取数据</span>
+df = pd.read_csv(<span style="color: #a31515;">"/data/boston_housing.csv"</span>)
+
+<span style="color: #008000;"># 显示前5行</span>
+<span style="color: #0000ff;">print</span>(df.head())
+
+<span style="color: #008000;"># 这行有错误（故意的）</span>
+<span class="error-line"><span style="color: #0000ff;">print</span>(undefined_variable)  <span style="color: #ff0000;">← 错误行会被高亮</span></span>
+            </div>
+            <div class="button-wrapper">
+                <button id="run-button" class="action-button">▶️ 运行</button>
+                <button class="action-button" style="background: #dc3545;">⏹️ 停止</button>
+                <button id="clear-code-button" class="action-button">🗑️ 清空代码</button>
+                <button id="clear-output-button" class="action-button">🧹 清空输出</button>
+            </div>
+        </div>
+        
+        <div class="panel output-panel">
+            <h3>输出</h3>
+            <pre id="output">✅ <strong>功能演示</strong>
+
+<span class="badge badge-success">✓ 异步架构</span> 所有 Python 操作在 Web Worker 中执行
+<span class="badge badge-success">✓ 深色模式</span> 完整主题系统，刷新后保持
+<span class="badge badge-success">✓ 错误高亮</span> 自动解析 traceback 并高亮错误行
+<span class="badge badge-success">✓ 智能补全</span> Jedi + 类型推断支持 DataFrame/ndarray
+<span class="badge badge-success">✓ 离线支持</span> Service Worker 缓存核心资源
+<span class="badge badge-success">✓ Monaco 多源</span> CDN + 本地回退加载策略
+
+<span class="badge badge-info">📦 已安装的包</span>
+• pandas (数据分析)
+• numpy (科学计算)
+• jedi (代码补全)
+
+<span class="badge badge-warning">⚠️ 模拟输出</span>
+这是 UI 演示页面。完整功能需要：
+1. pyodide/ 目录（Python 运行时）
+2. monaco/ 目录（编辑器，可选）
+3. 启动本地服务器
+
+<span class="badge badge-danger">❌ 错误示例</span>
+File "&lt;exec&gt;", line 9, in &lt;module&gt;
+  print(undefined_variable)
+NameError: name 'undefined_variable' is not defined
+→ 第 9 行已在编辑器中高亮显示</pre>
+            <button id="jump-to-error" class="action-button">⬆️ 跳转到错误行</button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const themeToggle = document.getElementById('theme-toggle');
+    const output = document.getElementById('output');
+    const runButton = document.getElementById('run-button');
+    const jumpButton = document.getElementById('jump-to-error');
+    
+    // Sync theme
+    const htmlDark = document.documentElement.classList.contains('dark-mode');
+    if (htmlDark) {
+        document.body.classList.add('dark-mode');
+    }
+    
+    // Theme toggle
+    themeToggle.addEventListener('click', () => {
+        const isDark = document.body.classList.contains('dark-mode');
+        
+        if (isDark) {
+            document.body.classList.remove('dark-mode');
+            document.documentElement.classList.remove('dark-mode');
+            localStorage.setItem('pythonEditorTheme', 'light');
+            output.textContent = '☀️ 已切换到浅色模式\n\n主题设置已保存到 localStorage\n刷新页面后主题会保持一致\n\n' + output.textContent;
+        } else {
+            document.body.classList.add('dark-mode');
+            document.documentElement.classList.add('dark-mode');
+            localStorage.setItem('pythonEditorTheme', 'dark');
+            output.textContent = '🌙 已切换到深色模式\n\n主题设置已保存到 localStorage\n刷新页面后主题会保持一致\n\n' + output.textContent;
+        }
+    });
+    
+    // Mock run
+    runButton.addEventListener('click', () => {
+        output.textContent = '🚀 正在执行代码...\n\n' + 
+            '📦 检测到需要的包: pandas\n' +
+            '✅ pandas 已安装\n\n' +
+            '执行结果:\n' +
+            '     CRIM    ZN  INDUS  CHAS    NOX     RM   AGE     DIS  RAD  TAX  \\\n' +
+            '0  0.00632  18.0   2.31     0  0.538  6.575  65.2  4.0900    1  296   \n' +
+            '1  0.02731   0.0   7.07     0  0.469  6.421  78.9  4.9671    2  242   \n\n' +
+            '❌ 运行出错:\n' +
+            'NameError: name \'undefined_variable\' is not defined\n' +
+            '错误位于第 9 行\n\n' +
+            '→ 编辑器中的错误行已高亮显示\n' +
+            '→ 点击下方"跳转到错误行"按钮可快速定位';
+    });
+    
+    // Jump to error
+    jumpButton.addEventListener('click', () => {
+        alert('在真实环境中，这会滚动到编辑器的错误行并聚焦光标');
+    });
+});
+</script>
+</body>
+</html>
