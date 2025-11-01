@@ -155,7 +155,7 @@
     </style>
 </head>
 <body class="loading">
-<div id="loader-overlay"><div class="loader"></div><p id="loading-text">正��加载…</p><p id="loading-progress"></p></div>
+<div id="loader-overlay"><div class="loader"></div><p id="loading-text">正在加载…</p><p id="loading-progress"></p></div>
 <div id="app-container">
     <header>
         <h2>🐍 Python在线运行</h2>
@@ -312,7 +312,7 @@
             });
 
             if (typeof require === 'undefined') {
-                try { await ensureAmdLoader(); } catch (e) { throw new Error('Monaco AMD 加载器不可用'); }
+                try { await ensureAmdLoader(); } catch (e) { throw new Error('Monaco 加载器不可用'); }
             }
             let lastErr;
             for (const base of bases) {
