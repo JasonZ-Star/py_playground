@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Python在线运行</title>
+    <title>枫下代码 - Python在线</title>
     <script>
         // Early theme bootstrapping: set dark-mode on <html> before paint so loader adopts theme
         (function(){
@@ -14,7 +14,8 @@
             }catch(e){}
         })();
     </script>
-    <script src="pyodide/pyodide.js" defer></script>
+    <!-- Removed redundant main-thread pyodide script; worker loads Pyodide itself -->
+    <!-- <script src="pyodide/pyodide.js" defer></script> -->
     <script src="templates.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.min.js" defer></script>
     <link href="https://cdn.bootcdn.net/ajax/libs/lxgw-wenkai-screen-webfont/1.6.0/lxgwwenkaiscreen.css" rel="stylesheet">
@@ -158,7 +159,7 @@
 <div id="loader-overlay"><div class="loader"></div><p id="loading-text">正在加载…</p><p id="loading-progress"></p></div>
 <div id="app-container">
     <header>
-        <h2>🐍 Python在线运行</h2>
+        <h2>🐍 枫下代码 - Python</h2>
         <div class="header-actions">
             <span id="bg-install-badge" class="badge hidden" aria-live="polite">后台安装中…</span>
             <button class="icon-button" id="stop-button" data-tooltip="停止">⏹️</button>
@@ -335,7 +336,7 @@
                 this.updateLoadingText('正在初始化编辑器…');
                 this.updateProgress('加载 Monaco 编辑器...');
                 await this.loadMonaco();
-                // Use initial html.dark-mode as the single source of truth unless user saved preference exists
+                // Theme sync
                 const saved = StorageManager.getTheme && StorageManager.getTheme();
                 const initialDark = document.documentElement.classList.contains('dark-mode');
                 const dark = (saved === null) ? initialDark : (saved === 'dark');
@@ -351,14 +352,16 @@
                 const initialCode=StorageManager.getCode();
                 this.editor=new EditorManager('monaco-container', initialCode);
                 await this.editor.initialize(this.monaco);
-                const idle= window.requestIdleCallback || function(cb){ setTimeout(()=>cb({didTimeout:false,timeRemaining:()=>50}),800)};
-                idle(async()=>{ try{ const code=this.editor.getValue(); const pkgs=await this.packageManager.findNewPackages(code); if(pkgs.size>0) await this.packageManager.installPackages(pkgs,true); }catch(e){ console.warn('Idle warmup failed:',e);} });
+                // Initialize managers before idle warmup to avoid race
+                this.packageManager=new PackageManager(this.workerClient, outputElement);
+                this.codeExecutor=new CodeExecutor(this.workerClient, outputElement);
                 this.updateProgress('初始化代码补全...');
                 this.completionProvider=new CompletionProvider(this.workerClient,this.monaco);
                 await this.completionProvider.initialize();
                 this.completionProvider.register(this.editor.editor);
-                this.packageManager=new PackageManager(this.workerClient, outputElement);
-                this.codeExecutor=new CodeExecutor(this.workerClient, outputElement);
+                // Idle warmup after managers exist
+                const idle= window.requestIdleCallback || function(cb){ setTimeout(()=>cb({didTimeout:false,timeRemaining:()=>50}),800)};
+                idle(async()=>{ try{ const code=this.editor.getValue(); const pkgs=await this.packageManager.findNewPackages(code); if(pkgs.size>0) await this.packageManager.installPackages(pkgs,true); }catch(e){ console.warn('Idle warmup failed:',e);} });
                 this.setupEventListeners();
                 document.getElementById('output').textContent='✅ Python 环境准备就绪！\n💡 提示: 安装/补全/执行都在后台，不会阻塞页面';
                 this.updateLoadingText('加载完成!');

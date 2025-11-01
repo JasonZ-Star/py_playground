@@ -144,10 +144,18 @@ async function findPackages(payload) {
     let match;
     try {
         const loadedPackages = pyodide.loadedPackages;
-        const sysModules = await pyodide.runPythonAsync('list(sys.modules.keys())');
+        // Retrieve sys.modules list as JSON to ensure a plain JS array (avoid PyProxy pitfalls)
+        const sysModulesJson = await pyodide.runPythonAsync('import sys, json; json.dumps(list(sys.modules.keys()))');
+        const sysModules = JSON.parse(sysModulesJson || '[]');
         while ((match = importRegex.exec(code)) !== null) {
             const moduleName = (match[1] || match[2]).split('.')[0];
-            if (moduleName && !loadedPackages[moduleName] && !sysModules.includes(moduleName) && !stdlibModules.has(moduleName) && !installed.has(moduleName)) {
+            if (
+                moduleName &&
+                !loadedPackages[moduleName] &&
+                !sysModules.includes(moduleName) &&
+                !stdlibModules.has(moduleName) &&
+                !installed.has(moduleName)
+            ) {
                 pkgsToInstall.add(moduleName);
             }
         }
@@ -266,6 +274,7 @@ sys.stderr = io.StringIO()
     } catch (e) {
         const executionTime = ((Date.now() - startTime) / 1000).toFixed(3);
         let errorMsg = e.message || String(e);
+        let lineNum = null;
 
         if (e.name === 'PythonError' || e.constructor?.name === 'PythonError') {
             try {
@@ -279,10 +288,37 @@ traceback.print_exc(file=sys.stderr)
             } catch {}
         }
 
+        // Best-effort extract error line number from traceback
+        try {
+            // Prefer frames pointing to <exec>/<string>/example.py (user code)
+            const frameMatches = errorMsg.match(/File \"([^\"]+)\", line (\d+)/g);
+            if (frameMatches && frameMatches.length) {
+                // Use the last frame that looks like user code
+                for (let i = frameMatches.length - 1; i >= 0; i--) {
+                    const m = /File \"([^\"]+)\", line (\d+)/.exec(frameMatches[i]);
+                    if (m) {
+                        const file = m[1] || '';
+                        const n = parseInt(m[2], 10);
+                        if (Number.isFinite(n) && (file.includes('<exec>') || file.includes('<string>') || file.endsWith('example.py'))) {
+                            lineNum = n; break;
+                        }
+                        // Fallback: accept the last frame even if file doesn't match
+                        if (i === frameMatches.length - 1 && Number.isFinite(n)) {
+                            lineNum = n; break;
+                        }
+                    }
+                }
+            } else {
+                const m2 = errorMsg.match(/line (\d+)/);
+                if (m2) lineNum = parseInt(m2[1], 10);
+            }
+        } catch {}
+
         return {
             success: false,
             output: `❌ 错误:\n${errorMsg}`,
-            time: executionTime
+            time: executionTime,
+            line: lineNum
         };
     }
 }

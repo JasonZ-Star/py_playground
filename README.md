@@ -34,18 +34,20 @@ npm run start
 
 ## 二、主要实现说明
 
-- Pyodide 通过本地 `pyodide/` 目录加载，无需联网。
+- Pyodide 由 Web Worker (`py-worker.js`) 加载与管理，主线程不直接加载 Pyodide。
 - 首次运行会加载 `jedi` 与 `micropip` 包。
-- 自动包管理：在编辑器输入时或运行前扫描 `import`/`from ... import ...`，对未加载且非标准库的模块使用 `micropip.install` 安装，避免重复安装。
+- 自动包管理：在编辑器输入时或运行前扫描 `import`/`from ... import ...`，对未加载且非标准库的模块使用 `pyodide.loadPackage` 或 `micropip.install` 安装，避免重复安装。
 - 第三方库补全：放宽补全超时为 10 秒，并在安装后对导入的库进行一次预热请求，提升后续补全速度。
+- 已内置 Service Worker 注册（`sw.js`），用于基础缓存与离线体验（可按需调整缓存名单）。
 
 
 ## 三、文件结构
 
 - `index.html`：页面与核心逻辑（Monaco 初始化、Pyodide 管理、补全、运行、分享等）
 - `templates.js`：示例代码模板
-- `py-worker.js`：备选 Worker 实现（当前页面未使用，供后续迁移到 Worker 参考）
-- `pyodide/`：Pyodide runtime 与常用 wheel 包
+- `py-worker.js`：实际使用的 Web Worker（加载 Pyodide、安装包、执行、补全）
+- `sw.js`：最小化的 Service Worker（可选）
+- `pyodide/`：Pyodide runtime 与常用 wheel 包（用于离线；若缺失，可改为 CDN 方案）
 - `fonts/`：JetBrains Mono 等本地字体（可选）
 - `data/`：示例数据集
 
@@ -55,6 +57,7 @@ npm run start
 - 由于 WebAssembly 限制，某些原生扩展或依赖系统接口的包不可用。
 - 大体量库（pandas/numpy 等）首次补全可能需要 1-5 秒进行预热。
 - 为安全考虑，运行时禁止 `subprocess`、`os.system`、`eval/exec` 等。
+- 若需真正的“停止/中断”，浏览器需具备 SharedArrayBuffer 可用（COOP/COEP 头），且需要在 Worker/执行端配合实现（当前回退为重启 Worker）。
 
 
 ## 五、常用操作
@@ -66,6 +69,6 @@ npm run start
 
 ## 六、故障排查
 
-- 白屏或控制台报错：打开 F12 查看 Console；文件按需打印了 `[Debug]` 日志。
-- 包安装失败：检查包名是否正确；或查看 `pyodide/` 目录是否包含所需 wheel。
-- 资源加载慢：Monaco 走 CDN，可切换到你更快的镜像源。
+- 白屏或控制台报错：打开 F12 查看 Console；资源加载失败时可检查是否存在本地 `pyodide/` 目录。
+- 包安装失败：检查包名是否正确；或确认 `pyodide/` 目录是否包含所需包，或改为在线 CDN。
+- 资源加载慢：Monaco 走 CDN，可切换到你更快的镜像源或放到本地。
