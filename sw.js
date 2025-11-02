@@ -1,12 +1,11 @@
 // Minimal service worker to avoid registration errors and enable basic caching.
-const CACHE_NAME = 'py-playground-v3';
+const CACHE_NAME = 'py-playground-v4';
 const CORE_ASSETS = [
   '/',
   '/index.html',
   '/templates.js',
-  '/index.js',
-  // Intentionally exclude '/py-worker.js' to avoid staleness
-  '/data/boston_housing.csv'
+  '/index.js'
+  // Removed pre-caching of '/data/boston_housing.csv' to avoid stale data
 ];
 
 self.addEventListener('install', (event) => {
@@ -36,6 +35,20 @@ self.addEventListener('fetch', (event) => {
   // Always bypass cache for worker script to avoid stale worker
   if (url.pathname.endsWith('/py-worker.js')) {
     event.respondWith(fetch(req));
+    return;
+  }
+
+  // Always bypass cache for Pyodide core to avoid stale .data/.wasm files
+  if (url.pathname.startsWith('/pyodide/')) {
+    event.respondWith(fetch(req));
+    return;
+  }
+
+  // Network-first for /data to prevent stale CSV
+  if (url.pathname.startsWith('/data/')) {
+    event.respondWith((async () => {
+      try { return await fetch(req); } catch { return caches.match(req); }
+    })());
     return;
   }
 

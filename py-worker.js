@@ -180,8 +180,8 @@ async function ensureDataMounted() {
 async function loadPyodideInstance(indexURL) {
     try {
         const cdnBases = [
-            'https://cdn.jsdelivr.net/pyodide/v0.24.1/full',
-            'https://unpkg.com/pyodide@0.24.1/full'
+            'https://cdn.jsdelivr.net/pyodide/v0.29.0/full',
+            'https://unpkg.com/pyodide@0.29.0/full'
         ];
         const localBase = (indexURL || 'pyodide/').replace(/\/+$/, '');
         const candidates = [...cdnBases, localBase];
@@ -369,20 +369,28 @@ async function installPackages(payload) {
             }
         }
 
-        const preferLoad = new Set(['numpy','pandas','matplotlib','seaborn','scipy','scikit-learn','sklearn','Pillow','PIL','sympy','networkx','bokeh','altair']);
+        const nativeOnly = new Set(['numpy','pandas','matplotlib','seaborn','scipy','scikit-learn','sklearn','Pillow','PIL','sympy','networkx','bokeh','altair']);
+        const preferLoad = nativeOnly; // keep same set, but forbid pip fallback
+
+        const failures = [];
         for (const pkg of toInstall) {
-            let ok = false;
             if (preferLoad.has(pkg)) {
                 try {
                     await pyodide.loadPackage(pkg);
-                    installed.add(pkg); ok = true;
+                    installed.add(pkg);
+                    continue;
                 } catch (e) {
-                    // fallback to micropip
+                    // Do not fallback to micropip for native packages in Pyodide
+                    failures.push({ pkg, error: e.message || String(e) });
+                    continue;
                 }
             }
-            if (!ok) {
+            // For other (likely pure-Python) packages, try micropip
+            try {
                 await micropip.install([pkg]);
                 installed.add(pkg);
+            } catch (e) {
+                failures.push({ pkg, error: e.message || String(e) });
             }
         }
 
@@ -398,6 +406,11 @@ except (ImportError, AttributeError):
     pass
         `);
         try { micropip.destroy(); } catch {}
+
+        if (failures.length) {
+            const msg = failures.map(f => `${f.pkg}: ${f.error}`).join('; ');
+            return { success: false, error: `部分包安装失败: ${msg}` };
+        }
         return { success: true };
 
     } catch (e) {
@@ -536,6 +549,19 @@ self.onmessage = async (e) => {
 
             case 'complete':
                 responsePayload = await getCompletions(payload);
+                break;
+
+            case 'setup_interrupt':
+                try {
+                    if (pyodide && typeof pyodide.setInterruptBuffer === 'function' && payload?.sab) {
+                        pyodide.setInterruptBuffer(payload.sab);
+                        responsePayload = { success: true };
+                    } else {
+                        responsePayload = { success: false, error: 'setInterruptBuffer not available' };
+                    }
+                } catch (err) {
+                    responsePayload = { success: false, error: err.message || String(err) };
+                }
                 break;
 
             default:
