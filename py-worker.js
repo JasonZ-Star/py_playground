@@ -16,7 +16,158 @@ const PYODIDE_CONFIG = {
 };
 const stdlibModules = new Set();
 const installed = new Set();
+let dataMounted = false;
+let dataMountPromise = null;
 
+function fsExists(path) {
+    try {
+        const st = pyodide && pyodide.FS && pyodide.FS.analyzePath(path);
+        return !!(st && st.exists);
+    } catch { return false; }
+}
+
+function getDataBaseUrlCandidates() {
+    const candidates = [];
+    try {
+        // Relative to worker script (same directory root)
+        candidates.push(new URL('data/', self.location.href).href);
+    } catch {}
+    try {
+        // Absolute at origin root (useful when hosted at root)
+        candidates.push(new URL('/data/', self.location.origin).href);
+    } catch {}
+    try {
+        // Relative to current path directory
+        const u = new URL(self.location.href);
+        const dir = u.pathname.replace(/[^/]+$/, '');
+        candidates.push(new URL(dir + 'data/', u.origin).href);
+    } catch {}
+    // De-duplicate
+    return Array.from(new Set(candidates));
+}
+
+async function resolveDataBaseUrl() {
+    const cands = getDataBaseUrlCandidates();
+    // Try directory listing first
+    for (const base of cands) {
+        try {
+            const r = await fetch(base, { method: 'GET', cache: 'no-cache' });
+            if (r.ok) return base;
+        } catch {}
+    }
+    // Fallback: try a known file
+    for (const base of cands) {
+        try {
+            const r = await fetch(new URL('boston_housing.csv', base).href, { cache: 'no-cache' });
+            if (r.ok) return base;
+        } catch {}
+    }
+    // As a last resort, return the first candidate
+    return cands[0] || '/data/';
+}
+
+function postProgress(text, payload) {
+    try { self.postMessage({ type: 'progress', text, payload }); } catch {}
+}
+
+// Ensure a specific file exists in Pyodide FS; fetch from candidates if missing
+async function ensureFilePresent(pathInFs, candidates) {
+    if (fsExists(pathInFs)) return true;
+    const bases = candidates || getDataBaseUrlCandidates();
+    // Normalize the path to a relative file part against a /data/ base
+    const rel = pathInFs.replace(/^\/+/, ''); // strip leading '/'
+    const relAgainstData = rel.startsWith('data/') ? rel.slice('data/'.length) : rel;
+    for (const base of bases) {
+        try {
+            // If base already ends with /data/, append only the file part; otherwise append full relative path
+            const baseEndsWithData = /\/data\/?$/.test(base);
+            const joinPart = baseEndsWithData ? relAgainstData : rel;
+            const url = new URL(joinPart, base).href;
+            const r = await fetch(url, { cache: 'no-cache' });
+            if (!r.ok) continue;
+            const buf = await r.arrayBuffer();
+            // Ensure directory
+            try { pyodide.FS.mkdirTree(pathInFs.replace(/\/[^/]*$/, '')); } catch {}
+            pyodide.FS.writeFile(pathInFs, new Uint8Array(buf));
+            return true;
+        } catch {}
+    }
+    return false;
+}
+
+// Try to mirror /data directory into Pyodide FS
+async function mountDataDir(baseUrl) {
+    baseUrl = baseUrl || await resolveDataBaseUrl();
+    if (!pyodide || !pyodide.FS) return;
+    try { pyodide.FS.mkdirTree('/data'); } catch {}
+
+    let mountedCount = 0;
+    try {
+        const res = await fetch(baseUrl, { cache: 'no-cache' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        const hrefs = [];
+        const re = /href=["']([^"'#?]+)["']/gi;
+        let m;
+        while ((m = re.exec(text)) !== null) {
+            const href = m[1];
+            if (!href || href === '../') continue;
+            if (href.endsWith('/')) continue;
+            hrefs.push(href);
+        }
+        if (hrefs.length === 0) hrefs.push('boston_housing.csv');
+
+        for (const name of hrefs) {
+            try {
+                const url = new URL(name, baseUrl).href;
+                const r = await fetch(url);
+                if (r.ok) {
+                    const buf = await r.arrayBuffer();
+                    const path = '/data/' + name;
+                    const parts = path.split('/').slice(1, -1);
+                    if (parts.length) {
+                        let acc = '';
+                        for (const p of parts) { acc += '/' + p; try { pyodide.FS.mkdir(acc); } catch {} }
+                    }
+                    pyodide.FS.writeFile(path, new Uint8Array(buf));
+                    mountedCount++;
+                }
+            } catch (e) {
+                console.warn('[Worker] Skip mounting file from data:', name, e?.message || e);
+            }
+        }
+        dataMounted = mountedCount > 0;
+        // Ensure the key CSV exists even if directory listing missed it
+        if (!fsExists('/data/boston_housing.csv')) {
+            const ok = await ensureFilePresent('/data/boston_housing.csv', [baseUrl]);
+            if (ok) mountedCount++;
+            dataMounted = dataMounted || ok;
+        }
+        postProgress('数据目录挂载完成', `${mountedCount} 个文件`);
+    } catch (e) {
+        console.warn('[Worker] Data directory listing failed, fallback single file:', e?.message || e);
+        try {
+            const ok = await ensureFilePresent('/data/boston_housing.csv', [baseUrl]);
+            if (ok) {
+                dataMounted = true; mountedCount = 1;
+                postProgress('数据文件挂载完成', 'boston_housing.csv');
+            }
+        } catch (e2) {
+            console.warn('[Worker] Fallback mount /data/boston_housing.csv failed:', e2?.message || e2);
+            postProgress('数据挂载失败', e2?.message || 'fallback failed');
+        }
+    }
+}
+
+async function ensureDataMounted() {
+    if (dataMounted) return;
+    if (!dataMountPromise) {
+        dataMountPromise = (async ()=>{ const base = await resolveDataBaseUrl(); await mountDataDir(base); })().catch((e)=>{
+            console.warn('[Worker] ensureDataMounted failed:', e?.message || e);
+        });
+    }
+    try { await dataMountPromise; } catch {}
+}
 
 // ========================================
 // Pyodide 加载
@@ -28,24 +179,45 @@ const installed = new Set();
  */
 async function loadPyodideInstance(indexURL) {
     try {
-        importScripts("pyodide/pyodide.js");
-        pyodide = await loadPyodide({ indexURL });
-        await pyodide.loadPackage(["micropip", "jedi"]);
+        const cdnBases = [
+            'https://cdn.jsdelivr.net/pyodide/v0.24.1/full',
+            'https://unpkg.com/pyodide@0.24.1/full'
+        ];
+        const localBase = (indexURL || 'pyodide/').replace(/\/+$/, '');
+        const candidates = [...cdnBases, localBase];
+        let lastErr;
+        for (const base of candidates) {
+            try {
+                // Load pyodide.js from candidate base
+                importScripts(`${base}/pyodide.js`);
+                // Initialize with matching indexURL
+                pyodide = await loadPyodide({ indexURL: `${base}/` });
+                await pyodide.loadPackage(["micropip", "jedi"]);
 
-        // 将 Python 的 stdlib_module_names 转为 JS 数组再迭代
-        let namesProxy = pyodide.runPython('list(__import__("sys").stdlib_module_names)');
-        try {
-            const names = namesProxy && namesProxy.toJs ? namesProxy.toJs() : [];
-            for (const name of names) {
-                stdlibModules.add(name);
+                // Fill stdlib names
+                let namesProxy = pyodide.runPython('list(__import__("sys").stdlib_module_names)');
+                try {
+                    const names = namesProxy && namesProxy.toJs ? namesProxy.toJs() : [];
+                    for (const name of names) {
+                        stdlibModules.add(name);
+                    }
+                } finally {
+                    try { namesProxy && namesProxy.destroy && namesProxy.destroy(); } catch {}
+                }
+
+                // Mount data directory (best-effort)
+                try { const base = await resolveDataBaseUrl(); await mountDataDir(base); } catch (e) { console.warn('[Worker] mountDataDir failed:', e?.message || e); }
+
+                return { success: true };
+            } catch (e) {
+                lastErr = e;
+                console.warn('[Worker] Pyodide load failed from', base, e?.message || e);
+                // Try next candidate
             }
-        } finally {
-            try { namesProxy && namesProxy.destroy && namesProxy.destroy(); } catch {}
         }
-
-        return { success: true };
+        return { success: false, error: lastErr?.message || 'Pyodide 加载失败' };
     } catch (e) {
-        console.error('[Worker] Pyodide load failed:', e);
+        console.error('[Worker] Pyodide load failed (fatal):', e);
         return { success: false, error: e.message };
     }
 }
@@ -252,6 +424,11 @@ async function executeCode(payload) {
     );
 
     try {
+        // Ensure data is mounted before running user code
+        try { await ensureDataMounted(); } catch {}
+        // Second-chance ensure key CSV exists, in case directory listing was blocked
+        try { await ensureFilePresent('/data/boston_housing.csv'); } catch {}
+
         await pyodide.runPythonAsync(`
 import sys, io
 sys.stdout = io.StringIO()
@@ -288,26 +465,27 @@ traceback.print_exc(file=sys.stderr)
             } catch {}
         }
 
-        // Best-effort extract error line number from traceback
+        // Prefer the frame that points to user code ('<exec>' / '<string>' / 'example.py')
         try {
-            // Prefer frames pointing to <exec>/<string>/example.py (user code)
-            const frameMatches = errorMsg.match(/File \"([^\"]+)\", line (\d+)/g);
-            if (frameMatches && frameMatches.length) {
-                // Use the last frame that looks like user code
-                for (let i = frameMatches.length - 1; i >= 0; i--) {
-                    const m = /File \"([^\"]+)\", line (\d+)/.exec(frameMatches[i]);
-                    if (m) {
-                        const file = m[1] || '';
-                        const n = parseInt(m[2], 10);
-                        if (Number.isFinite(n) && (file.includes('<exec>') || file.includes('<string>') || file.endsWith('example.py'))) {
-                            lineNum = n; break;
-                        }
-                        // Fallback: accept the last frame even if file doesn't match
-                        if (i === frameMatches.length - 1 && Number.isFinite(n)) {
-                            lineNum = n; break;
-                        }
-                    }
+            const frames = [];
+            const re = /File \"([^\"]+)\", line (\d+)/g;
+            let m;
+            while ((m = re.exec(errorMsg)) !== null) {
+                frames.push({ file: m[1], line: parseInt(m[2], 10) });
+            }
+            let preferred = null;
+            for (let i = frames.length - 1; i >= 0; i--) {
+                const f = frames[i];
+                if (!Number.isFinite(f.line)) continue;
+                if (f.file.includes('<exec>') || f.file.includes('<string>') || f.file.endsWith('example.py')) {
+                    preferred = f.line; break;
                 }
+            }
+            if (preferred != null) {
+                lineNum = preferred;
+            } else if (frames.length) {
+                // fallback to last frame's line
+                lineNum = frames[frames.length - 1].line;
             } else {
                 const m2 = errorMsg.match(/line (\d+)/);
                 if (m2) lineNum = parseInt(m2[1], 10);
