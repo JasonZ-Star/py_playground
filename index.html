@@ -44,6 +44,10 @@
             --btn-bg: #f0f0f0;
             --btn-fg: #111;
             --shadow: rgba(0,0,0,0.1);
+            /* Scrollbar (light) */
+            --scrollbar-bg: #f0f0f0;
+            --scrollbar-thumb: #c1c1c1;
+            --scrollbar-thumb-hover: #a8a8a8;
         }
         body.dark-mode {
             --bg: #1e1e1e;
@@ -55,6 +59,10 @@
             --btn-bg: #2d2d2d;
             --btn-fg: #eee;
             --shadow: rgba(0,0,0,0.4);
+            /* Scrollbar (dark) */
+            --scrollbar-bg: #1f1f1f;
+            --scrollbar-thumb: #4a4a4a;
+            --scrollbar-thumb-hover: #6a6a6a;
         }
         html.dark-mode {
             --bg: #1e1e1e;
@@ -66,6 +74,10 @@
             --btn-bg: #2d2d2d;
             --btn-fg: #eee;
             --shadow: rgba(0,0,0,0.4);
+            /* Keep vars in sync when html has dark-mode */
+            --scrollbar-bg: #1f1f1f;
+            --scrollbar-thumb: #4a4a4a;
+            --scrollbar-thumb-hover: #6a6a6a;
         }
         * { box-sizing: border-box; }
         html, body { height: 100%; }
@@ -148,6 +160,24 @@
         .monaco-editor .error-line-decoration { background: rgba(220, 53, 69, 0.15); }
         .monaco-editor .error-line-glyph { background: #dc3545; width: 4px; }
         .tiny-button { font-size:12px; padding:4px 8px; border-radius: 6px; border:1px solid var(--panel-border); background: var(--panel-bg); color: var(--fg); cursor:pointer; }
+        /* Scroll fixes for flex layouts */
+        .playground-wrapper, .panel, .editor-panel, .output-panel { min-height: 0; }
+        #monaco-container, #output { min-height: 0; }
+        #output { overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; scrollbar-gutter: stable; }
+        /* Global scrollbar styling (Firefox) */
+        * { scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-bg); scrollbar-width: thin; }
+        /* WebKit scrollbars */
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: var(--scrollbar-bg); }
+        ::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb); border-radius: 8px; border: 2px solid var(--scrollbar-bg); }
+        ::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
+        ::-webkit-scrollbar-corner { background: var(--scrollbar-bg); }
+        /* Monaco custom scrollbars */
+        .monaco-scrollable-element > .scrollbar.vertical { width: 10px !important; }
+        .monaco-scrollable-element > .scrollbar.horizontal { height: 10px !important; }
+        .monaco-scrollable-element > .scrollbar { background: transparent !important; }
+        .monaco-scrollable-element > .scrollbar > .slider { background: var(--scrollbar-thumb) !important; border-radius: 8px !important; }
+        .monaco-scrollable-element > .scrollbar > .slider:hover { background: var(--scrollbar-thumb-hover) !important; }
     </style>
 </head>
 <body class="loading">
