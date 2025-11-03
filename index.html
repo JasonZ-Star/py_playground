@@ -11,6 +11,13 @@
     <link rel="dns-prefetch" href="//unpkg.com">
     <link rel="preconnect" href="https://cdn.bootcdn.net" crossorigin>
     <link rel="dns-prefetch" href="//cdn.bootcdn.net">
+    <link rel="prefetch" href="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js" as="script" crossorigin>
+    <link rel="prefetch" href="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.asm.wasm" as="fetch" crossorigin>
+    <link rel="prefetch" href="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/python_stdlib.zip" as="fetch" crossorigin>
+    <!-- Local fonts to avoid external CSS SRI issues -->
+    <link rel="stylesheet" href="fonts/local-fonts.css">
+    <!-- Inline favicon to avoid 404 -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='8' fill='%2366cc66'/%3E%3C/svg%3E">
     <script>
         // Early theme bootstrapping: set dark-mode on <html> before paint so loader adopts theme
         (function(){
@@ -24,8 +31,8 @@
     <!-- Removed redundant main-thread pyodide script; worker loads Pyodide itself -->
     <!-- <script src="pyodide/pyodide.js" defer></script> -->
     <script src="templates.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.min.js" defer></script>
-    <link href="https://cdn.bootcdn.net/ajax/libs/lxgw-wenkai-screen-webfont/1.6.0/lxgwwenkaiscreen.css" rel="stylesheet">
+    <!-- Remove incorrect SRI on Monaco loader; loader is injected dynamically with fallback in loadMonaco() -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.min.js" defer integrity="..." crossorigin="anonymous"></script> -->
     <style>
         :root {
             --bg: #f7f7f7;
@@ -49,7 +56,6 @@
             --btn-fg: #eee;
             --shadow: rgba(0,0,0,0.4);
         }
-        /* Ensure variables also apply when <html> has dark-mode (set before body exists) */
         html.dark-mode {
             --bg: #1e1e1e;
             --fg: #ddd;
@@ -65,13 +71,10 @@
         html, body { height: 100%; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 0; overflow: hidden; background: var(--bg); color: var(--fg); }
         #loader-overlay { display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; }
-        body.dark-mode #loader-overlay { background: rgba(0,0,0,0.6); }
-        /* Also adapt when <html> has dark-mode class */
-        html.dark-mode #loader-overlay { background: rgba(0,0,0,0.6); }
+        body.dark-mode #loader-overlay, html.dark-mode #loader-overlay { background: rgba(0,0,0,0.6); }
         body.loading #loader-overlay { display: flex; }
         body.loading #app-container { display: none; }
         .loader { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
-        /* Spinner color in dark mode */
         body.dark-mode .loader, html.dark-mode .loader { border-color: #2b2b2b; border-top-color: #61dafb; }
         @keyframes spin { 0%{transform:rotate(0)} 100%{transform:rotate(360deg)} }
         #loading-text { margin-top: 15px; font-size: 16px; color: var(--fg); font-weight: 500; }
@@ -83,28 +86,13 @@
         .icon-button { position: relative; width: 36px; height: 36px; border: none; border-radius: 6px; background: var(--btn-bg); color: var(--btn-fg); cursor: pointer; font-size: 18px; transition: background 0.2s; }
         .icon-button:hover { background: #e0e0e0; }
         body.dark-mode .icon-button:hover { background: #3a3a3a; }
-        /* Tooltip base (adaptive) */
         .icon-button[data-tooltip]::after {
             content: attr(data-tooltip);
-            position: absolute;
-            left: 50%;
-            white-space: nowrap;
-            background: #111;
-            color: #fff;
-            font-size: 12px;
-            padding: 4px 8px;
-            border-radius: 4px;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity .15s, transform .15s;
-            z-index: 100;
-            box-shadow: 0 2px 6px var(--shadow);
+            position: absolute; left: 50%; white-space: nowrap; background: #111; color: #fff; font-size: 12px; padding: 4px 8px; border-radius: 4px; opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; z-index: 100; box-shadow: 0 2px 6px var(--shadow);
         }
-        /* Top placement */
         .icon-button[data-tooltip][data-tooltip-pos="top"]::after { bottom: 100%; transform: translate(-50%, -8px); }
         .icon-button:hover[data-tooltip][data-tooltip-pos="top"]::after,
         .icon-button:focus-visible[data-tooltip][data-tooltip-pos="top"]::after { opacity: 0.95; transform: translate(-50%, -12px); }
-        /* Bottom placement */
         .icon-button[data-tooltip][data-tooltip-pos="bottom"]::after { top: 100%; transform: translate(-50%, 8px); }
         .icon-button:hover[data-tooltip][data-tooltip-pos="bottom"]::after,
         .icon-button:focus-visible[data-tooltip][data-tooltip-pos="bottom"]::after { opacity: 0.95; transform: translate(-50%, 12px); }
@@ -240,7 +228,9 @@
         async restart(){ try{ this.worker && this.worker.terminate(); }catch{} await this.init(this.indexURL); let resp=await this.request('load',{ indexURL:this.indexURL }); if(!resp||!resp.success) throw new Error(resp?.error||'加载 Pyodide 失败'); if(this.jediReady){ resp=await this.request('init_jedi',{}); if(!resp||!resp.success) console.warn('Jedi 重新初始化失败:',resp?.error); } if(this.interruptView){ try{ await this.request('setup_interrupt',{ sab:this.interruptView.buffer }); }catch{} } }
         setInterruptView(view){ this.interruptView=view; }
         interrupt(){ if(this.interruptView){ Atomics.store(this.interruptView,0,2); Atomics.notify(this.interruptView,0); return true; } return false; }
-        _onMessage(e){ const msg=e.data||{}; const {id,type,payload,text}=msg; switch(type){ case 'response':{ const r=this.pending.get(id); if(r){ this.pending.delete(id); r(payload); } break; } case 'stdout':{ if(this.outputEl){ this.outputEl.textContent += (this.outputEl.textContent? '\n':'') + (text??''); } break; } case 'stderr':{ if(this.outputEl){ this.outputEl.textContent += (this.outputEl.textContent? '\n':'') + (text??''); } break; } case 'progress':{ if(this.progressEl){ this.progressEl.textContent = msg.payload ? `${msg.text} ${msg.payload}` : (msg.text||''); } break; } default: break; } }
+        _onMessage(e){ const msg=e.data||{}; const {id,type,payload,text}=msg; switch(type){ case 'response':{ const r=this.pending.get(id); if(r){ this.pending.delete(id); r(payload); } break; } case 'stdout':{ if(this.outputEl){ this.outputEl.textContent += (this.outputEl.textContent? '\n':'') + (text??''); } break; } case 'stderr':{ if(this.outputEl){ this.outputEl.textContent += (this.outputEl.textContent? '\n':'') + (text??''); } break; } case 'progress':{ if(this.progressEl){ this.progressEl.textContent = msg.payload ? `${msg.text} ${msg.payload}` : (msg.text||''); } try{ if(msg.text){ const lower=String(msg.text).toLowerCase(); if(lower.includes('补全')||lower.includes('jedi')){ Notification.show(`🧠 ${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2500); } else if(lower.includes('安装')){ Notification.show(`📦 ${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2500); } else if(lower.includes('数据')){ Notification.show(`🗂️ ${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2000); } }
+            }catch(e){}
+            break; } default: break; } }
         request(action,payload={}){ return new Promise((res,rej)=>{ if(!this.worker) return rej(new Error('Worker not initialized')); const id=this.reqId++; this.pending.set(id,(resp)=>res(resp)); this.worker.postMessage({ id,type:'request',action,payload }); setTimeout(()=>{ if(this.pending.has(id)){ this.pending.delete(id); rej(new Error(`Worker request '${action}' timeout`)); } }, Math.max(CONFIG.COMPLETION.requestTimeoutMs, CONFIG.RUNTIME.executionTimeoutMs)); }); }
     }
 
@@ -291,17 +281,32 @@
         constructor(){ this.monaco=null; this.editor=null; this.packageManager=null; this.codeExecutor=null; this.completionProvider=null; this.workerClient=null; this.interruptView=null; this.hasInterrupt=false; this.errorDecorations=[]; this.lastErrorLine=null; }
         async trySetupInterrupt(){ if(typeof SharedArrayBuffer==='undefined') return false; const sab=new SharedArrayBuffer(4); const view=new Int32Array(sab); try{ const resp=await this.workerClient.request('setup_interrupt',{ sab }); if(resp&&resp.success){ this.interruptView=view; this.hasInterrupt=true; this.workerClient.setInterruptView(view); return true; } }catch(e){ console.warn('setup_interrupt failed:',e);} return false; }
         async loadMonaco() {
-            // 尝试注入本地 AMD loader（兼容 monaco/ 与 monoca/ 目录）
-            const ensureAmdLoader = () => new Promise((resolve, reject) => {
-                if (typeof require !== 'undefined') return resolve();
-                const trySources = ['/monaco/min/vs/loader.js', '/monoca/min/vs/loader.js'];
-                let idx = 0; let done = false;
-                const tryNext = () => {
-                    if (done) return; if (idx >= trySources.length) return reject(new Error('AMD loader not available'));
-                    const s = document.createElement('script'); s.src = trySources[idx++]; s.onload = () => { done = true; resolve(); }; s.onerror = tryNext; document.head.appendChild(s);
-                };
-                tryNext();
-            });
+             // 尝试注入 AMD loader（优先 CDN，回退本地）
+             const ensureAmdLoader = () => new Promise((resolve, reject) => {
+                 if (typeof require !== 'undefined') return resolve();
+                 const trySources = [
+                     'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.min.js',
+                     'https://unpkg.com/monaco-editor@0.47.0/min/vs/loader.min.js',
+                     '/monaco/min/vs/loader.js',
+                     '/monoca/min/vs/loader.js'
+                 ];
+                 let idx = 0; let done = false;
+                 const tryNext = () => {
+                     if (done) return; if (idx >= trySources.length) return reject(new Error('AMD loader not available'));
+                     const s = document.createElement('script');
+                     s.src = trySources[idx++];
+                     s.crossOrigin = 'anonymous';
+                     s.defer = true;
+                     // 针对 jsDelivr 源设置已知 SRI，失败则回退到下一个源
+                     if (s.src.includes('cdn.jsdelivr.net')) {
+                        s.integrity = 'sha384-PU5+ppwGtS0yVCbSQx3LgOXMX/X8tJY0nJ9HzzHRNL0Expw/bWlQILk3B8WSnpcG';
+                     }
+                     s.onload = () => { if (done) return; done = true; resolve(); };
+                     s.onerror = () => { try { document.head.removeChild(s); } catch {} tryNext(); };
+                     document.head.appendChild(s);
+                 };
+                 tryNext();
+             });
 
             // 多源回退（CDN -> 本地 monaco/ -> 本地 monoca/）
             const bases = [
@@ -418,6 +423,16 @@
             document.getElementById('help-button').addEventListener('click',()=>document.getElementById('help-modal').classList.add('active'));
             // 初始化自适应气泡
             this.initAdaptiveTooltips();
+
+            // 资源加载失败友好提示
+            window.addEventListener('error', (ev) => {
+                const t = ev && ev.target;
+                if (!t || !(t.tagName === 'SCRIPT' || t.tagName === 'LINK')) return;
+                try {
+                    const url = t.src || t.href || '';
+                    Notification.show(`⚠️ 资源加载失败，已尝试备用源：${url}`,'warning', 4000);
+                } catch {}
+            }, true);
         }
 
         initAdaptiveTooltips(){
@@ -448,8 +463,10 @@
             try{ const code=this.editor.getValue(); const pkgs=await this.packageManager.findNewPackages(code); if(pkgs.size>0){ outputElement.textContent=`🔔 安装模块: ${Array.from(pkgs).join(', ')}...`; await this.packageManager.installPackages(pkgs,false); }
                 const result=await this.codeExecutor.execute(code);
                 if(result.success){ status.className='status-indicator status-success'; outputElement.textContent=result.output; execTimeElement.textContent=`✅ 执行完成 (${result.time}s)`; Notification.show('✅ 代码执行成功','success',2000);
-                } else { status.className='status-indicator status-error'; outputElement.textContent=result.output; execTimeElement.textContent=`❌ 执行失败 (${result.time}s)`; const line=result.line; if(typeof line==='number' && this.editor?.editor){ try{ const m=this.monaco; this.editor.editor.revealLineInCenter(line); this.errorDecorations=this.editor.editor.deltaDecorations(this.errorDecorations,[{ range:new m.Range(line,1,line,1), options:{ isWholeLine:true, className:'error-line-decoration', glyphMarginClassName:'error-line-glyph' } }]); this.lastErrorLine=line; jumpError.style.display='inline-block'; // add hover marker
-                        const model=this.editor.editor.getModel(); m.editor.setModelMarkers(model,'py',[{ startLineNumber: line, startColumn:1, endLineNumber: line, endColumn: 1, message: '运行出错，详见输出区', severity: m.MarkerSeverity.Error }]); }catch(e){ console.warn('Decorations failed:',e);} }
+                } else { status.className='status-indicator status-error'; outputElement.textContent=result.output; execTimeElement.textContent=`❌ 执行失败 (${result.time}s)`; const line=result.line; if(typeof line==='number' && this.editor?.editor){ try{ const m=this.monaco; const col = (result.col && Number.isFinite(result.col)) ? Math.max(1, result.col) : 1; this.editor.editor.revealLineInCenter(line);
+                        const range = new m.Range(line, col, line, col+1);
+                        this.errorDecorations=this.editor.editor.deltaDecorations(this.errorDecorations,[{ range: range, options:{ isWholeLine: !result.col, className:'error-line-decoration', glyphMarginClassName:'error-line-glyph' } }]); this.lastErrorLine=line; jumpError.style.display='inline-block';
+                        const model=this.editor.editor.getModel(); m.editor.setModelMarkers(model,'py',[{ startLineNumber: line, startColumn: col, endLineNumber: line, endColumn: Math.max(col,2), message: '运行出错，详见输出区', severity: m.MarkerSeverity.Error }]); }catch(e){ console.warn('Decorations failed:',e);} }
                     Notification.show('❌ 代码执行出错','error'); }
             } catch(e){ status.className='status-indicator status-error'; outputElement.textContent=`❌ 执行失败: ${e.message}`; execTimeElement.textContent='❌ 执行中止'; Notification.show(`❌ ${e.message}`,'error'); }
             finally{ try{ if(this.workerClient.interruptView) Atomics.store(this.workerClient.interruptView,0,0); }catch{} runButton.disabled=false; runButton.textContent='▶️ 运行'; }
@@ -470,8 +487,53 @@
 
         const urlParams=new URLSearchParams(window.location.search); let codeLoadedFromUrl=false; if(urlParams.has('template')){ const k=urlParams.get('template'); if(typeof codeTemplates!=='undefined' && codeTemplates[k]){ StorageManager.saveCode(codeTemplates[k]); codeLoadedFromUrl=true; } }
         if(!codeLoadedFromUrl && urlParams.has('code')){ try{ const decoded=decodeURIComponent(escape(atob(urlParams.get('code')))); StorageManager.saveCode(decoded); codeLoadedFromUrl=true; }catch(e){ console.warn('Failed to decode shared code:',e);} }
+        // 以 SRI + 回退方式加载 LXGW 字体样式，失败时提示并回退到其他 CDN 或去除 SRI
+        (function loadLXGWCss(){
+            const primary = {
+                href: 'https://cdn.bootcdn.net/ajax/libs/lxgw-wenkai-screen-webfont/1.6.0/lxgwwenkaiscreen.css',
+                integrity: 'sha384-JSVn1znHuc8FVDp6lnwfdr+E/15Rtb/gBqsVMICU1fX4qsG81cPVTaneaJWFM8Ox',
+            };
+            const fallbacks = [
+                { href: 'https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.6.0/lxgwwenkaiscreen.css' },
+                { href: 'https://unpkg.com/lxgw-wenkai-screen-webfont@1.6.0/lxgwwenkaiscreen.css' }
+            ];
+            const mount = (opt) => {
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = opt.href;
+                link.referrerPolicy = 'no-referrer';
+                if (opt.integrity) { link.integrity = opt.integrity; link.crossOrigin = 'anonymous'; }
+                link.onerror = () => {
+                    try { document.head.removeChild(link); } catch {}
+                    const next = fallbacks.shift();
+                    if (next) {
+                        try { Notification.show('⚠️ 字体样式 SRI 校验失败，正在使用备用源','warning', 3500); } catch {}
+                        mount(next);
+                    } else if (opt.integrity) {
+                        // 最后再尝试去掉 SRI 重新加载
+                        try { Notification.show('⚠️ 所有备用源均不可用，放弃 SRI 继续加载字体','warning', 3500); } catch {}
+                        mount({ href: opt.href });
+                    }
+                };
+                document.head.appendChild(link);
+            };
+            mount(primary);
+        })();
+
         const app = new PythonREPL();
         setTimeout(() => app.main(), 100);
+
+        // Watchdog：如果 6 秒后仍处于 loading，则强制展示页面并提示
+        setTimeout(() => {
+            if (document.body.classList.contains('loading')) {
+                document.body.classList.remove('loading');
+                const overlay = document.getElementById('loader-overlay');
+                if (overlay) overlay.style.display = 'none';
+                try {
+                    Notification.show('⚠️ 初始化较慢，已为你显示界面，稍后功能会自动就绪','warning', 4000);
+                } catch {}
+            }
+        }, 6000);
 
         // 注册 Service Worker（提升弱网/离线体验）
         if ('serviceWorker' in navigator) {

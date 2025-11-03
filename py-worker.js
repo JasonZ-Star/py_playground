@@ -181,7 +181,9 @@ async function loadPyodideInstance(indexURL) {
     try {
         const cdnBases = [
             'https://cdn.jsdelivr.net/pyodide/v0.29.0/full',
-            'https://unpkg.com/pyodide@0.29.0/full'
+            'https://unpkg.com/pyodide@0.29.0/full',
+            'https://fastly.jsdelivr.net/pyodide/v0.29.0/full',
+            'https://cdnjs.cloudflare.com/ajax/libs/pyodide/0.29.0/full'
         ];
         const localBase = (indexURL || 'pyodide/').replace(/\/+$/, '');
         const candidates = [...cdnBases, localBase];
@@ -231,6 +233,33 @@ async function loadPyodideInstance(indexURL) {
  */
 async function initJedi() {
     try {
+        // Ensure jedi is available
+        let hasJedi = false;
+        try {
+            await pyodide.runPythonAsync('import jedi; _v=jedi.__version__');
+            hasJedi = true;
+        } catch {}
+        if (!hasJedi) {
+            postProgress('尝试加载补全引擎 (Jedi)…');
+            try { await pyodide.loadPackage('jedi'); hasJedi = true; } catch {}
+        }
+        if (!hasJedi) {
+            postProgress('正在修复补全引擎 (Jedi)，可能稍慢…');
+            try {
+                const micropip = pyodide.pyimport('micropip');
+                await micropip.install(['jedi==0.19.1']);
+                try { micropip.destroy(); } catch {}
+                await pyodide.runPythonAsync('import jedi; _v=jedi.__version__');
+                hasJedi = true;
+            } catch (e) {
+                console.warn('[Worker] micropip install jedi failed:', e?.message || e);
+            }
+        }
+        if (!hasJedi) {
+            postProgress('补全引擎不可用', '请检查网络或稍后重试');
+            return { success: false, error: 'Jedi 不可用' };
+        }
+
         await pyodide.runPythonAsync(`
 import json
 import jedi
@@ -250,6 +279,7 @@ def get_jedi_completions(code, line, column):
         return "[]"
         `);
         jediCompletionFn = pyodide.globals.get('get_jedi_completions');
+        postProgress('补全引擎就绪', 'Jedi');
         return { success: true };
     } catch (e) {
         console.error('[Worker] Jedi init failed:', e);
@@ -407,14 +437,47 @@ except (ImportError, AttributeError):
         `);
         try { micropip.destroy(); } catch {}
 
+        // Post-install self-check: try importing installed packages to catch incompatible wheels
+        try {
+            const names = JSON.stringify(Array.from(new Set(toInstall)));
+            const checkResult = await pyodide.runPythonAsync(`
+import json, importlib
+fails = {}
+oks = []
+for _name in json.loads('''${names}'''):
+    try:
+        if not _name:
+            continue
+        importlib.import_module(_name)
+        oks.append(_name)
+    except Exception as e:
+        fails[_name] = str(e)
+json.dumps({'ok': oks, 'fail': fails})
+            `);
+            const parsed = JSON.parse(checkResult || '{"ok":[],"fail":{}}');
+            const failMap = parsed && parsed.fail ? parsed.fail : {};
+            const bad = Object.keys(failMap);
+            if (bad.length) {
+                const msg = bad.map(k => `${k}: ${failMap[k]}`).join('; ');
+                postProgress('包自检失败', msg);
+                return { success: false, error: `包自检失败: ${msg}` };
+            }
+        } catch (e) {
+            // Self-check errors shouldn't crash install; just log
+            console.warn('[Worker] Post-install self-check skipped:', e?.message || e);
+        }
+
         if (failures.length) {
             const msg = failures.map(f => `${f.pkg}: ${f.error}`).join('; ');
+            postProgress('部分包安装失败', msg);
             return { success: false, error: `部分包安装失败: ${msg}` };
         }
+        postProgress('模块安装完成', packages.join(', '));
         return { success: true };
 
     } catch (e) {
         console.error('[Worker] Install failed:', e);
+        postProgress('模块安装失败', e.message || 'unknown');
         return { success: false, error: e.message };
     }
 }
@@ -465,6 +528,7 @@ sys.stderr = io.StringIO()
         const executionTime = ((Date.now() - startTime) / 1000).toFixed(3);
         let errorMsg = e.message || String(e);
         let lineNum = null;
+        let colNum = null;
 
         if (e.name === 'PythonError' || e.constructor?.name === 'PythonError') {
             try {
@@ -503,13 +567,28 @@ traceback.print_exc(file=sys.stderr)
                 const m2 = errorMsg.match(/line (\d+)/);
                 if (m2) lineNum = parseInt(m2[1], 10);
             }
+            // Try to find a caret line to estimate column (syntax errors)
+            const parts = (errorMsg || '').split(/\n/);
+            for (let i = parts.length - 1; i >= 1; i--) {
+                const ln = parts[i];
+                if (/^\s*\^+\s*$/.test(ln)) {
+                    const firstCaret = ln.indexOf('^');
+                    if (firstCaret >= 0) { colNum = firstCaret + 1; }
+                    break;
+                }
+            }
+            if (colNum == null) {
+                const mc = errorMsg.match(/column\s+(\d+)/i);
+                if (mc) colNum = parseInt(mc[1], 10);
+            }
         } catch {}
 
         return {
             success: false,
             output: `❌ 错误:\n${errorMsg}`,
             time: executionTime,
-            line: lineNum
+            line: lineNum,
+            col: colNum
         };
     }
 }
