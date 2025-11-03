@@ -257,7 +257,7 @@
 
     class WorkerClient { constructor(workerPath, outputEl, progressEl){ this.workerPath=workerPath; this.worker=null; this.reqId=1; this.pending=new Map(); this.outputEl=outputEl; this.progressEl=progressEl; this.indexURL='pyodide/'; this.jediReady=false; this.interruptView=null; }
         async init(indexURL='pyodide/'){ this.indexURL=indexURL; return new Promise((res,rej)=>{ try{ this.worker=new Worker(this.workerPath||'py-worker.js'); this.worker.onmessage=(e)=>this._onMessage(e); res(); }catch(e){ rej(e); } }); }
-        async restart(){ try{ this.worker && this.worker.terminate(); }catch{} await this.init(this.indexURL); let resp=await this.request('load',{ indexURL:this.indexURL, prefer:'cdn' }); if(!resp||!resp.success) throw new Error(resp?.error||'加载 Pyodide 失败'); if(this.jediReady){ resp=await this.request('init_jedi',{}); if(!resp||!resp.success) console.warn('Jedi 重新初始化失败:',resp?.error); } if(this.interruptView){ try{ await this.request('setup_interrupt',{ sab:this.interruptView.buffer }); }catch{} } }
+        async restart(){ try{ this.worker && this.worker.terminate(); }catch{} await this.init(this.indexURL); let resp=await this.request('load',{ indexURL:this.indexURL, prefer:'cdn' }); if(!resp||!resp.success) throw new Error(resp?.error||'加载 Pyodide 失败'); if(this.jediReady){ resp=await this.request('init_jedi',{}); if(!resp||!resp.success) console.warn('Jedi 重新初始化��败:',resp?.error); } if(this.interruptView){ try{ await this.request('setup_interrupt',{ sab:this.interruptView.buffer }); }catch{} } }
         setInterruptView(view){ this.interruptView=view; }
         interrupt(){ if(this.interruptView){ Atomics.store(this.interruptView,0,2); Atomics.notify(this.interruptView,0); return true; } return false; }
         _onMessage(e){ const msg=e.data||{}; const {id,type,payload,text}=msg; switch(type){ case 'response':{ const r=this.pending.get(id); if(r){ this.pending.delete(id); r(payload); } break; } case 'stdout':{ if(this.outputEl){ this.outputEl.textContent += (this.outputEl.textContent? '\n':'') + (text??''); } break; } case 'stderr':{ if(this.outputEl){ this.outputEl.textContent += (this.outputEl.textContent? '\n':'') + (text??''); } break; } case 'progress':{ if(this.progressEl){ this.progressEl.textContent = msg.payload ? `${msg.text} ${msg.payload}` : (msg.text||''); } try{ if(msg.text){ const lower=String(msg.text).toLowerCase(); if(lower.includes('补全')||lower.includes('jedi')){ Notification.show(`🧠 ${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2500); } else if(lower.includes('安装')){ Notification.show(`📦 ${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2500); } else if(lower.includes('数据')){ Notification.show(`🗂️ ${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2000); } }
@@ -268,28 +268,61 @@
 
     class Notification { static show(msg,type='info',duration=3000){ const n=document.createElement('div'); n.className=`notification ${type}`; n.textContent=msg; document.body.appendChild(n); setTimeout(()=>{ n.style.animation='slideOut .2s ease-out forwards'; setTimeout(()=>n.remove(),200); },duration); } }
 
-    class StorageManager { static KEY_CODE='pythonEditorCode'; static KEY_THEME='pythonEditorTheme'; static saveCode(code){ try{ localStorage.setItem(this.KEY_CODE,code);}catch{}} static getCode(){ try{ return localStorage.getItem(this.KEY_CODE)||'print("Hello, World!")'; }catch{ return 'print("Hello, World!")'; } } static getTheme(){ try{ const v = localStorage.getItem(this.KEY_THEME); return v === null ? null : v; }catch{ return null; } } static setTheme(t){ try{ localStorage.setItem(this.KEY_THEME,t);}catch{} } }
+    class StorageManager { static KEY_CODE='pythonEditorCode'; static KEY_THEME='pythonEditorTheme';
+        // Add keys for zoom persistence
+        static KEY_EDITOR_FONT='pythonEditorFontSize';
+        static KEY_EDITOR_LINE='pythonEditorLineHeight';
+        static KEY_OUTPUT_FONT='pythonOutputFontSize';
+        static saveCode(code){ try{ localStorage.setItem(this.KEY_CODE,code);}catch{}} static getCode(){ try{ return localStorage.getItem(this.KEY_CODE)||'print("Hello, World!")'; }catch{ return 'print("Hello, World!")'; } } static getTheme(){ try{ const v = localStorage.getItem(this.KEY_THEME); return v === null ? null : v; }catch{ return null; } } static setTheme(t){ try{ localStorage.setItem(this.KEY_THEME,t);}catch{} }
+        static setEditorFontSize(n){ try{ localStorage.setItem(this.KEY_EDITOR_FONT,String(n)); }catch{} }
+        static getEditorFontSize(){ try{ const v=localStorage.getItem(this.KEY_EDITOR_FONT); return v? Number(v) : null; }catch{ return null; } }
+        static setEditorLineHeight(n){ try{ localStorage.setItem(this.KEY_EDITOR_LINE,String(n)); }catch{} }
+        static getEditorLineHeight(){ try{ const v=localStorage.getItem(this.KEY_EDITOR_LINE); return v? Number(v) : null; }catch{ return null; } }
+        static setOutputFontSize(n){ try{ localStorage.setItem(this.KEY_OUTPUT_FONT,String(n)); }catch{} }
+        static getOutputFontSize(){ try{ const v=localStorage.getItem(this.KEY_OUTPUT_FONT); return v? Number(v) : null; }catch{ return null; } }
+    }
 
-    class EditorManager { constructor(containerId, initialCode){ this.container=document.getElementById(containerId); this.editor=null; this.initialCode=initialCode; this.changeListeners=[]; }
-        async initialize(monaco){ return new Promise((resolve)=>{ const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint; const fontSize=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop; const lineHeight=isMobile?CONFIG.EDITOR.lineHeight.mobile:CONFIG.EDITOR.lineHeight.desktop; this.editor = monaco.editor.create(this.container, {
+    class EditorManager { constructor(containerId, initialCode){ this.container=document.getElementById(containerId); this.editor=null; this.initialCode=initialCode; this.changeListeners=[]; this._fontLineRatio=null; }
+        async initialize(monaco){ return new Promise((resolve)=>{ const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint; const defaultFont=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop; const defaultLine=isMobile?CONFIG.EDITOR.lineHeight.mobile:CONFIG.EDITOR.lineHeight.desktop; const savedFont=StorageManager.getEditorFontSize(); const baseFont = (savedFont && Number.isFinite(savedFont)) ? savedFont : defaultFont; const ratio = defaultLine / defaultFont; const savedLine=StorageManager.getEditorLineHeight(); const baseLine = (savedLine && Number.isFinite(savedLine)) ? savedLine : Math.max( Math.round(baseFont * ratio), 12 ); this._fontLineRatio = ratio > 1 ? ratio : 1.4; this.editor = monaco.editor.create(this.container, {
             value: this.initialCode,
             language: 'python',
             theme: document.body.classList.contains('dark-mode') ? 'vs-dark' : 'vs',
             automaticLayout: true,
             fontFamily: CONFIG.EDITOR.font,
-            fontSize: fontSize,
-            lineHeight: lineHeight,
+            fontSize: baseFont,
+            lineHeight: baseLine,
             minimap: { enabled: false },
             wordWrap: 'on',
             scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
             quickSuggestions: { other: true, comments: true, strings: true },
             suggestOnTriggerCharacters: true,
             tabSize: 4,
-            insertSpaces: true
-        }); this.editor.onDidChangeModelContent(()=>{ const code=this.getValue(); StorageManager.saveCode(code); this.changeListeners.forEach(cb=>cb(code)); try{ const templateSelector=document.getElementById('template-selector'); if(!templateSelector) return; const selectedTemplateKey=templateSelector.value; if(selectedTemplateKey && typeof codeTemplates!=='undefined' && codeTemplates[selectedTemplateKey]!==code){ templateSelector.value=''; const url=new URL(window.location); if(url.searchParams.has('template')){ url.searchParams.delete('template'); window.history.replaceState({},'',url); } } }catch(e){ console.warn('Error decoupling template:',e);} }); resolve(); }); }
+            insertSpaces: true,
+            mouseWheelZoom: true
+        }); this.editor.onDidChangeModelContent(()=>{ const code=this.getValue(); StorageManager.saveCode(code); this.changeListeners.forEach(cb=>cb(code)); try{ const templateSelector=document.getElementById('template-selector'); if(!templateSelector) return; const selectedTemplateKey=templateSelector.value; if(selectedTemplateKey && typeof codeTemplates!=='undefined' && codeTemplates[selectedTemplateKey]!==code){ templateSelector.value=''; const url=new URL(window.location); if(url.searchParams.has('template')){ url.searchParams.delete('template'); window.history.replaceState({},'',url); } } }catch(e){ console.warn('Error decoupling template:',e);} });
+        // Persist font size when user zooms via official Ctrl+Wheel
+        try {
+            this.editor.onDidChangeConfiguration((e)=>{
+                try {
+                    const EO = monaco.editor && monaco.editor.EditorOption;
+                    let changedFont = false;
+                    if (e && typeof e.hasChanged === 'function' && EO) {
+                        if (EO.fontSize && e.hasChanged(EO.fontSize)) changedFont = true;
+                        if (EO.fontInfo && e.hasChanged(EO.fontInfo)) changedFont = true;
+                    }
+                    if (!changedFont) return;
+                    const fs = (this.editor.getOption && EO && this.editor.getOption(EO.fontSize)) || baseFont;
+                    const lh = Math.max(12, Math.round(fs * (this._fontLineRatio || 1.5)));
+                    StorageManager.setEditorFontSize(fs);
+                    StorageManager.setEditorLineHeight(lh);
+                } catch {}
+            });
+        } catch {}
+        resolve(); }); }
         getValue(){ return this.editor? this.editor.getValue():''; }
         setValue(code){ if(this.editor) this.editor.setValue(code); }
         onChange(cb){ this.changeListeners.push(cb); }
+        setFontSize(newSize){ if(!this.editor) return; const min=10, max=32; const fs = Math.max(min, Math.min(max, Math.round(newSize))); const lh = Math.max(12, Math.round(fs * (this._fontLineRatio || 1.5))); this.editor.updateOptions({ fontSize: fs, lineHeight: lh }); StorageManager.setEditorFontSize(fs); StorageManager.setEditorLineHeight(lh); }
     }
 
     class PackageManager { constructor(workerClient, outputElement){ this.workerClient=workerClient; this.outputElement=outputElement; this.installing=false; this.installDebounce=null; this.badgeEl=document.getElementById('bg-install-badge'); }
@@ -407,6 +440,8 @@
             const initialCode=StorageManager.getCode();
             this.editor=new EditorManager('monaco-container', initialCode);
             await this.editor.initialize(this.monaco);
+            // Apply saved output font size if any
+            try { const outFs = StorageManager.getOutputFontSize(); if (outFs && Number.isFinite(outFs)) { outputElement.style.fontSize = `${outFs}px`; } } catch {}
             // Initialize managers before idle warmup to avoid race
             this.packageManager=new PackageManager(this.workerClient, outputElement);
             this.codeExecutor=new CodeExecutor(this.workerClient, outputElement);
@@ -466,6 +501,22 @@
             document.getElementById('help-button').addEventListener('click',()=>document.getElementById('help-modal').classList.add('active'));
             // 初始化自适应气泡
             this.initAdaptiveTooltips();
+
+            // Ctrl + MouseWheel zoom for Output only (Editor uses official mouseWheelZoom)
+            try {
+                const outputEl = document.getElementById('output');
+                const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+                outputEl.addEventListener('wheel', (ev)=>{
+                    if (!ev.ctrlKey) return; ev.preventDefault();
+                    const style = getComputedStyle(outputEl);
+                    const curPx = parseFloat(style.fontSize) || 15;
+                    const dir = ev.deltaY < 0 ? 1 : -1;
+                    const step = Math.abs(ev.deltaY) >= 50 ? 2 : 1;
+                    const next = clamp(Math.round(curPx + dir*step), 10, 28);
+                    outputEl.style.fontSize = `${next}px`;
+                    StorageManager.setOutputFontSize(next);
+                }, { passive: false });
+            } catch (e) { console.warn('Bind wheel zoom failed:', e); }
 
             // 资源加载失败友好提示
             window.addEventListener('error', (ev) => {

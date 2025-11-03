@@ -1,4 +1,6 @@
-/* Local font-face for JetBrains Mono to avoid remote CSS SRI issues */
+
+
+
 @font-face {
   font-family: 'JetBrains Mono';
   src: url('./webfonts/JetBrainsMono-Regular.woff2') format('woff2');
