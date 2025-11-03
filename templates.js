@@ -10,6 +10,9 @@
 
 const codeTemplates = {
     "pandas-1": 'import pandas as pd\nfrom pyodide.http import pyfetch\nimport io\nimport asyncio\n\nasync def load_csv_from_url(url):\n\n    print(f" [Helper] 正在从 {url} 下载数据...")\n    try:\n        response = await pyfetch(url)\n        if response.status != 200:\n            print(f"❌ [Helper] 下载失败! 状态码: {response.status}")\n            # 返回一个空 DataFrame\n            return pd.DataFrame()\n\n        csv_text = await response.string()\n        f = io.StringIO(csv_text)\n        print("下载成功")\n        return f\n\n    except Exception as e:\n        print(f"❌ [Helper] 处理数据时出错:")\n        print(f"错误详情: {e}")\n        return pd.DataFrame() # 返回一个空 DataFrame\n\n\nurl = \'https://playg.jasonz.top/data/boston_housing.csv\' \n\n# 这是数据，试着用Pandas导入吧！\nboston_housing = await load_csv_from_url(url)\n',
+
+    "pandas-2": '# 第二章配套练习\n\nimport pandas as pd\n\n# 导入本地数据 boston_housing.csv（已预载到 /data）\nboston_housing = pd.read_csv("/data/boston_housing.csv")\nprint(boston_housing.head())\n\n# 在新行输入 \'boston_housing.\' 测试 DataFrame 补全，然后继续你的分析...\n\n',
+
     "Hello World": 'print("Hello, World!")',
 
     "列表操作": 'nums = [1, 2, 3, 4, 5]\nprint(f"总和: {sum(nums)}")\nprint(f"平均值: {sum(nums)/len(nums)}")\nprint(f"最大值: {max(nums)}")\nprint(f"最小值: {min(nums)}")',

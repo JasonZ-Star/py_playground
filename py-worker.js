@@ -186,10 +186,20 @@ async function loadPyodideInstance(indexURL) {
             'https://cdnjs.cloudflare.com/ajax/libs/pyodide/0.29.0/full'
         ];
         const localBase = (indexURL || 'pyodide/').replace(/\/+$/, '');
-        const candidates = [...cdnBases, localBase];
+        // Prefer local first for offline-first behavior
+        const candidates = [localBase, ...cdnBases];
         let lastErr;
         for (const base of candidates) {
             try {
+                // Preflight: ensure stdlib is reachable to avoid 'encodings' errors
+                try {
+                    const head = await fetch(`${base}/python_stdlib.zip`, { method: 'HEAD', cache: 'no-cache' });
+                    if (!head.ok) throw new Error(`HEAD ${head.status}`);
+                } catch (probeErr) {
+                    console.warn('[Worker] Skip base (stdlib not reachable):', base, probeErr?.message || probeErr);
+                    continue; // try next base
+                }
+
                 // Load pyodide.js from candidate base
                 importScripts(`${base}/pyodide.js`);
                 // Initialize with matching indexURL
@@ -607,29 +617,65 @@ self.onmessage = async (e) => {
     try {
         switch (action) {
             case 'load':
-                responsePayload = await loadPyodideInstance(payload.indexURL);
+                // Support payload.prefer: 'local' | 'cdn'
+                if (payload && typeof payload.prefer === 'string') {
+                    // Monkey-patch a one-off loader that respects prefer ordering
+                    responsePayload = await (async(prefer, indexURL)=>{
+                        try {
+                            const cdnBases = [
+                                'https://cdn.jsdelivr.net/pyodide/v0.29.0/full',
+                                'https://unpkg.com/pyodide@0.29.0/full',
+                                'https://fastly.jsdelivr.net/pyodide/v0.29.0/full',
+                                'https://cdnjs.cloudflare.com/ajax/libs/pyodide/0.29.0/full'
+                            ];
+                            const localBase = (indexURL || 'pyodide/').replace(/\/+$/, '');
+                            const order = prefer === 'cdn' ? [...cdnBases, localBase] : [localBase, ...cdnBases];
+                            let lastErr;
+                            for (const base of order) {
+                                try {
+                                    // Preflight stdlib existence
+                                    try {
+                                        const head = await fetch(`${base}/python_stdlib.zip`, { method: 'HEAD', cache: 'no-cache' });
+                                        if (!head.ok) throw new Error(`HEAD ${head.status}`);
+                                    } catch (probeErr) {
+                                        console.warn('[Worker] Skip base (stdlib not reachable):', base, probeErr?.message || probeErr);
+                                        continue;
+                                    }
+                                    importScripts(`${base}/pyodide.js`);
+                                    pyodide = await loadPyodide({ indexURL: `${base}/` });
+                                    await pyodide.loadPackage(["micropip", "jedi"]);
+                                    // Fill stdlib names
+                                    let namesProxy = pyodide.runPython('list(__import__("sys").stdlib_module_names)');
+                                    try { const names = namesProxy?.toJs ? namesProxy.toJs() : []; names.forEach(n=>stdlibModules.add(n)); } finally { try{ namesProxy?.destroy && namesProxy.destroy(); }catch{} }
+                                    try { const baseData = await resolveDataBaseUrl(); await mountDataDir(baseData); } catch(e) { console.warn('[Worker] mountDataDir failed:', e?.message||e); }
+                                    return { success:true };
+                                } catch (e) {
+                                    lastErr = e; console.warn('[Worker] Pyodide load failed from', base, e?.message || e);
+                                }
+                            }
+                            return { success:false, error: lastErr?.message || 'Pyodide 加载失败' };
+                        } catch(e){ return { success:false, error: e.message || String(e) }; }
+                    })(payload.prefer, payload.indexURL);
+                } else {
+                    responsePayload = await loadPyodideInstance(payload.indexURL);
+                }
                 break;
 
             case 'init_jedi':
                 responsePayload = await initJedi();
                 break;
-
             case 'find_packages':
                 responsePayload = await findPackages(payload);
                 break;
-
             case 'install':
                 responsePayload = await installPackages(payload);
                 break;
-
             case 'execute':
                 responsePayload = await executeCode(payload);
                 break;
-
             case 'complete':
                 responsePayload = await getCompletions(payload);
                 break;
-
             case 'setup_interrupt':
                 try {
                     if (pyodide && typeof pyodide.setInterruptBuffer === 'function' && payload?.sab) {
@@ -642,20 +688,13 @@ self.onmessage = async (e) => {
                     responsePayload = { success: false, error: err.message || String(err) };
                 }
                 break;
-
             default:
                 throw new Error(`Unknown action: ${action}`);
         }
 
-        // 发送成功响应
         self.postMessage({ id, type: 'response', payload: responsePayload });
 
     } catch (e) {
-        // 发送失败响应
-        self.postMessage({
-            id,
-            type: 'response',
-            payload: { success: false, error: e.message }
-        });
+        self.postMessage({ id, type: 'response', payload: { success: false, error: e.message } });
     }
 };

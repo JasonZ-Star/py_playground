@@ -75,7 +75,7 @@
             --btn-fg: #eee;
             --shadow: rgba(0,0,0,0.4);
             /* Keep vars in sync when html has dark-mode */
-            --scrollbar-bg: #1f1f1f;
+            --scrollbar-bg: #1f1e1e;
             --scrollbar-thumb: #4a4a4a;
             --scrollbar-thumb-hover: #6a6a6a;
         }
@@ -141,6 +141,8 @@
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
         .notification { position: fixed; bottom: 20px; right: 20px; background: var(--panel-bg); color: var(--fg); padding: 15px 20px; border-radius: 6px; border:1px solid var(--panel-border); box-shadow: 0 4px 12px var(--shadow); animation: slideIn 0.2s ease-out; max-width: 300px; z-index: 1000; }
         @keyframes slideIn { from{transform:translateX(400px);opacity:0} to{transform:translateX(0);opacity:1} }
+        /* Added missing slideOut for Notification.hide animation */
+        @keyframes slideOut { from{transform:translateX(0);opacity:1} to{transform:translateX(400px);opacity:0} }
         .notification.success { border-left: 4px solid #28a745; }
         .notification.error { border-left: 4px solid #dc3545; }
         .notification.info { border-left: 4px solid #17a2b8; }
@@ -190,7 +192,7 @@
             <button class="icon-button" id="stop-button" data-tooltip="停止">⏹️</button>
             <button class="icon-button" id="settings-button" data-tooltip="设置">⚙️</button>
             <button class="icon-button" id="dark-mode-button" data-tooltip="深色模式">🌙</button>
-              <button class="icon-button" id="help-button" data-tooltip="帮助">❓</button>
+            <button class="icon-button" id="help-button" data-tooltip="帮助">❓</button>
         </div>
     </header>
     <div class="playground-wrapper">
@@ -255,11 +257,11 @@
 
     class WorkerClient { constructor(workerPath, outputEl, progressEl){ this.workerPath=workerPath; this.worker=null; this.reqId=1; this.pending=new Map(); this.outputEl=outputEl; this.progressEl=progressEl; this.indexURL='pyodide/'; this.jediReady=false; this.interruptView=null; }
         async init(indexURL='pyodide/'){ this.indexURL=indexURL; return new Promise((res,rej)=>{ try{ this.worker=new Worker(this.workerPath||'py-worker.js'); this.worker.onmessage=(e)=>this._onMessage(e); res(); }catch(e){ rej(e); } }); }
-        async restart(){ try{ this.worker && this.worker.terminate(); }catch{} await this.init(this.indexURL); let resp=await this.request('load',{ indexURL:this.indexURL }); if(!resp||!resp.success) throw new Error(resp?.error||'加载 Pyodide 失败'); if(this.jediReady){ resp=await this.request('init_jedi',{}); if(!resp||!resp.success) console.warn('Jedi 重新初始化失败:',resp?.error); } if(this.interruptView){ try{ await this.request('setup_interrupt',{ sab:this.interruptView.buffer }); }catch{} } }
+        async restart(){ try{ this.worker && this.worker.terminate(); }catch{} await this.init(this.indexURL); let resp=await this.request('load',{ indexURL:this.indexURL, prefer:'cdn' }); if(!resp||!resp.success) throw new Error(resp?.error||'加载 Pyodide 失败'); if(this.jediReady){ resp=await this.request('init_jedi',{}); if(!resp||!resp.success) console.warn('Jedi 重新初始化失败:',resp?.error); } if(this.interruptView){ try{ await this.request('setup_interrupt',{ sab:this.interruptView.buffer }); }catch{} } }
         setInterruptView(view){ this.interruptView=view; }
         interrupt(){ if(this.interruptView){ Atomics.store(this.interruptView,0,2); Atomics.notify(this.interruptView,0); return true; } return false; }
         _onMessage(e){ const msg=e.data||{}; const {id,type,payload,text}=msg; switch(type){ case 'response':{ const r=this.pending.get(id); if(r){ this.pending.delete(id); r(payload); } break; } case 'stdout':{ if(this.outputEl){ this.outputEl.textContent += (this.outputEl.textContent? '\n':'') + (text??''); } break; } case 'stderr':{ if(this.outputEl){ this.outputEl.textContent += (this.outputEl.textContent? '\n':'') + (text??''); } break; } case 'progress':{ if(this.progressEl){ this.progressEl.textContent = msg.payload ? `${msg.text} ${msg.payload}` : (msg.text||''); } try{ if(msg.text){ const lower=String(msg.text).toLowerCase(); if(lower.includes('补全')||lower.includes('jedi')){ Notification.show(`🧠 ${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2500); } else if(lower.includes('安装')){ Notification.show(`📦 ${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2500); } else if(lower.includes('数据')){ Notification.show(`🗂️ ${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2000); } }
-            }catch(e){}
+        }catch(e){}
             break; } default: break; } }
         request(action,payload={}){ return new Promise((res,rej)=>{ if(!this.worker) return rej(new Error('Worker not initialized')); const id=this.reqId++; this.pending.set(id,(resp)=>res(resp)); this.worker.postMessage({ id,type:'request',action,payload }); setTimeout(()=>{ if(this.pending.has(id)){ this.pending.delete(id); rej(new Error(`Worker request '${action}' timeout`)); } }, Math.max(CONFIG.COMPLETION.requestTimeoutMs, CONFIG.RUNTIME.executionTimeoutMs)); }); }
     }
@@ -270,21 +272,21 @@
 
     class EditorManager { constructor(containerId, initialCode){ this.container=document.getElementById(containerId); this.editor=null; this.initialCode=initialCode; this.changeListeners=[]; }
         async initialize(monaco){ return new Promise((resolve)=>{ const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint; const fontSize=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop; const lineHeight=isMobile?CONFIG.EDITOR.lineHeight.mobile:CONFIG.EDITOR.lineHeight.desktop; this.editor = monaco.editor.create(this.container, {
-                    value: this.initialCode,
-                    language: 'python',
-                    theme: document.body.classList.contains('dark-mode') ? 'vs-dark' : 'vs',
-                    automaticLayout: true,
-                    fontFamily: CONFIG.EDITOR.font,
-                    fontSize: fontSize,
-                    lineHeight: lineHeight,
-                    minimap: { enabled: false },
-                    wordWrap: 'on',
-                    scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
-                    quickSuggestions: { other: true, comments: true, strings: true },
-                    suggestOnTriggerCharacters: true,
-                    tabSize: 4,
-                    insertSpaces: true
-                }); this.editor.onDidChangeModelContent(()=>{ const code=this.getValue(); StorageManager.saveCode(code); this.changeListeners.forEach(cb=>cb(code)); try{ const templateSelector=document.getElementById('template-selector'); if(!templateSelector) return; const selectedTemplateKey=templateSelector.value; if(selectedTemplateKey && typeof codeTemplates!=='undefined' && codeTemplates[selectedTemplateKey]!==code){ templateSelector.value=''; const url=new URL(window.location); if(url.searchParams.has('template')){ url.searchParams.delete('template'); window.history.replaceState({},'',url); } } }catch(e){ console.warn('Error decoupling template:',e);} }); resolve(); }); }
+            value: this.initialCode,
+            language: 'python',
+            theme: document.body.classList.contains('dark-mode') ? 'vs-dark' : 'vs',
+            automaticLayout: true,
+            fontFamily: CONFIG.EDITOR.font,
+            fontSize: fontSize,
+            lineHeight: lineHeight,
+            minimap: { enabled: false },
+            wordWrap: 'on',
+            scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
+            quickSuggestions: { other: true, comments: true, strings: true },
+            suggestOnTriggerCharacters: true,
+            tabSize: 4,
+            insertSpaces: true
+        }); this.editor.onDidChangeModelContent(()=>{ const code=this.getValue(); StorageManager.saveCode(code); this.changeListeners.forEach(cb=>cb(code)); try{ const templateSelector=document.getElementById('template-selector'); if(!templateSelector) return; const selectedTemplateKey=templateSelector.value; if(selectedTemplateKey && typeof codeTemplates!=='undefined' && codeTemplates[selectedTemplateKey]!==code){ templateSelector.value=''; const url=new URL(window.location); if(url.searchParams.has('template')){ url.searchParams.delete('template'); window.history.replaceState({},'',url); } } }catch(e){ console.warn('Error decoupling template:',e);} }); resolve(); }); }
         getValue(){ return this.editor? this.editor.getValue():''; }
         setValue(code){ if(this.editor) this.editor.setValue(code); }
         onChange(cb){ this.changeListeners.push(cb); }
@@ -303,40 +305,51 @@
     }
 
     class CodeExecutor { constructor(workerClient, outputElement){ this.workerClient=workerClient; this.outputElement=outputElement; }
-        validateCode(code){ for(const f of CONFIG.FORBIDDEN_MODULES){ if(code.includes(f)) throw new Error(`⚠️ 不允许使用: ${f}`); } }
-        async execute(code){ this.validateCode(code); const start=Date.now(); const controller=this.workerClient.request('execute',{ code }); const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error(`执行超时 (>${CONFIG.RUNTIME.executionTimeoutMs/1000}秒)`)), CONFIG.RUNTIME.executionTimeoutMs)); try{ const resp=await Promise.race([controller, timeout]); if(resp && resp.success){ return { success:true, output: resp.output||'(无输出)', time: resp.time || (((Date.now()-start)/1000).toFixed(3)) }; } const msg=(resp&&resp.output)||(resp&&resp.error)||'执行失败'; return { success:false, output:`❌ 错误:\n${msg}`, time: resp?.time || (((Date.now()-start)/1000).toFixed(3)), line: resp?.line ?? null }; } catch(e){ return { success:false, output:`❌ 错误:\n${e.message}`, time: ((Date.now()-start)/1000).toFixed(3) }; } }
+        validateCode(code){
+            const bannedPatterns = [
+                /\bimport\s+subprocess\b/,
+                /\bfrom\s+subprocess\s+import\b/,
+                /\bos\.system\s*\(/,
+                /\bfrom\s+os\s+import\s+system\b/,
+                /\b__import__\s*\(/,
+                /\beval\s*\(/,
+                /\bexec\s*\(/
+            ];
+            for(const re of bannedPatterns){ if(re.test(code)) throw new Error('⚠️ 不允许使用高危 API 或模块'); }
+        }
+        async execute(code){ this.validateCode(code); const start=Date.now(); const controller=this.workerClient.request('execute',{ code }); const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error(`执行超时 (>${CONFIG.RUNTIME.executionTimeoutMs/1000}秒)`)), CONFIG.RUNTIME.executionTimeoutMs)); try{ const resp=await Promise.race([controller, timeout]); if(resp && resp.success){ return { success:true, output: resp.output||'(无输出)', time: resp.time || (((Date.now()-start)/1000).toFixed(3)) }; } const msg=(resp&&resp.output)||(resp&&resp.error)||'执行失败'; return { success:false, output:`❌ 错误:\n${msg}`, time: resp?.time || (((Date.now()-start)/1000).toFixed(3)), line: resp?.line ?? null, col: resp?.col ?? null }; } catch(e){ return { success:false, output:`❌ 错误:\n${e.message}`, time: ((Date.now()-start)/1000).toFixed(3) }; } }
     }
 
     class PythonREPL {
         constructor(){ this.monaco=null; this.editor=null; this.packageManager=null; this.codeExecutor=null; this.completionProvider=null; this.workerClient=null; this.interruptView=null; this.hasInterrupt=false; this.errorDecorations=[]; this.lastErrorLine=null; }
         async trySetupInterrupt(){ if(typeof SharedArrayBuffer==='undefined') return false; const sab=new SharedArrayBuffer(4); const view=new Int32Array(sab); try{ const resp=await this.workerClient.request('setup_interrupt',{ sab }); if(resp&&resp.success){ this.interruptView=view; this.hasInterrupt=true; this.workerClient.setInterruptView(view); return true; } }catch(e){ console.warn('setup_interrupt failed:',e);} return false; }
         async loadMonaco() {
-             // 尝试注入 AMD loader（优先 CDN，回退本地）
-             const ensureAmdLoader = () => new Promise((resolve, reject) => {
-                 if (typeof require !== 'undefined') return resolve();
-                 const trySources = [
-                     'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.min.js',
-                     'https://unpkg.com/monaco-editor@0.47.0/min/vs/loader.min.js',
-                     '/monaco/min/vs/loader.js',
-                     '/monoca/min/vs/loader.js'
-                 ];
-                 let idx = 0; let done = false;
-                 const tryNext = () => {
-                     if (done) return; if (idx >= trySources.length) return reject(new Error('AMD loader not available'));
-                     const s = document.createElement('script');
-                     s.src = trySources[idx++];
-                     s.crossOrigin = 'anonymous';
-                     s.defer = true;
-                     // 针对 jsDelivr 源设置已知 SRI，失败则回退到下一个源
-                     if (s.src.includes('cdn.jsdelivr.net')) {
+            // 尝试注入 AMD loader（优先 CDN，回退本地）
+            const ensureAmdLoader = () => new Promise((resolve, reject) => {
+                if (typeof require !== 'undefined') return resolve();
+                const trySources = [
+                    'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.min.js',
+                    'https://unpkg.com/monaco-editor@0.47.0/min/vs/loader.min.js',
+                    '/monaco/min/vs/loader.js',
+                    '/monoca/min/vs/loader.js'
+                ];
+                let idx = 0; let done = false;
+                const tryNext = () => {
+                    if (done) return; if (idx >= trySources.length) return reject(new Error('AMD loader not available'));
+                    const s = document.createElement('script');
+                    s.src = trySources[idx++];
+                    s.crossOrigin = 'anonymous';
+                    s.defer = true;
+                    // 针对 jsDelivr 源设置已知 SRI，失败则回退到下一个源
+                    if (s.src.includes('cdn.jsdelivr.net')) {
                         s.integrity = 'sha384-PU5+ppwGtS0yVCbSQx3LgOXMX/X8tJY0nJ9HzzHRNL0Expw/bWlQILk3B8WSnpcG';
-                     }
-                     s.onload = () => { if (done) return; done = true; resolve(); };
-                     s.onerror = () => { try { document.head.removeChild(s); } catch {} tryNext(); };
-                     document.head.appendChild(s);
-                 };
-                 tryNext();
-             });
+                    }
+                    s.onload = () => { if (done) return; done = true; resolve(); };
+                    s.onerror = () => { try { document.head.removeChild(s); } catch {} tryNext(); };
+                    document.head.appendChild(s);
+                };
+                tryNext();
+            });
 
             // 多源回退（CDN -> 本地 monaco/ -> 本地 monoca/）
             const bases = [
@@ -364,58 +377,58 @@
             throw new Error('Monaco 加载失败（CDN/本地均不可用）: ' + (lastErr?.message || lastErr));
         }
         async main(){ try {
-                this.updateLoadingText('正在初始化后台环境…');
-                const outputElement=document.getElementById('output');
-                const progressElement=document.getElementById('loading-progress');
-                this.workerClient=new WorkerClient('py-worker.js', outputElement, progressElement);
-                await this.workerClient.init('pyodide/');
-                this.updateProgress('加载 Pyodide…');
-                let resp=await this.workerClient.request('load',{ indexURL:'pyodide/' });
-                if(!resp||!resp.success) throw new Error(resp?.error||'加载 Pyodide 失败');
-                this.updateProgress('加载 Jedi 代码补全引擎…');
-                resp=await this.workerClient.request('init_jedi',{}); if(resp&&resp.success) this.workerClient.jediReady=true;
-                await this.trySetupInterrupt();
-                this.updateLoadingText('正在初始化编辑器…');
-                this.updateProgress('加载 Monaco 编辑器...');
-                await this.loadMonaco();
-                // Theme sync
-                const saved = StorageManager.getTheme && StorageManager.getTheme();
-                const initialDark = document.documentElement.classList.contains('dark-mode');
-                const dark = (saved === null) ? initialDark : (saved === 'dark');
-                if(dark){
-                    document.body.classList.add('dark-mode');
-                    document.documentElement.classList.add('dark-mode');
-                    this.monaco.editor.setTheme('vs-dark');
-                } else {
-                    document.body.classList.remove('dark-mode');
-                    document.documentElement.classList.remove('dark-mode');
-                    this.monaco.editor.setTheme('vs');
-                }
-                const initialCode=StorageManager.getCode();
-                this.editor=new EditorManager('monaco-container', initialCode);
-                await this.editor.initialize(this.monaco);
-                // Initialize managers before idle warmup to avoid race
-                this.packageManager=new PackageManager(this.workerClient, outputElement);
-                this.codeExecutor=new CodeExecutor(this.workerClient, outputElement);
-                this.updateProgress('初始化代码补全...');
-                this.completionProvider=new CompletionProvider(this.workerClient,this.monaco);
-                await this.completionProvider.initialize();
-                this.completionProvider.register(this.editor.editor);
-                // Idle warmup after managers exist
-                const idle= window.requestIdleCallback || function(cb){ setTimeout(()=>cb({didTimeout:false,timeRemaining:()=>50}),800)};
-                idle(async()=>{ try{ const code=this.editor.getValue(); const pkgs=await this.packageManager.findNewPackages(code); if(pkgs.size>0) await this.packageManager.installPackages(pkgs,true); }catch(e){ console.warn('Idle warmup failed:',e);} });
-                this.setupEventListeners();
-                document.getElementById('output').textContent='✅ Python 环境准备就绪！\n💡 提示: 安装/补全/执行都在后台，不会阻塞页面';
-                this.updateLoadingText('加载完成!');
-                this.updateProgress('');
-                document.body.classList.remove('loading');
-                setTimeout(()=> document.getElementById('loader-overlay').style.display='none', 300);
-            } catch(err) {
-                console.error('Initialization failed:',err);
-                document.getElementById('output').textContent=`❌ 加载失败: ${err.message||err.toString()}`;
-                document.body.classList.remove('loading');
-                document.getElementById('loader-overlay').style.display='none';
+            this.updateLoadingText('正在初始化后台环境…');
+            const outputElement=document.getElementById('output');
+            const progressElement=document.getElementById('loading-progress');
+            this.workerClient=new WorkerClient('py-worker.js', outputElement, progressElement);
+            await this.workerClient.init('pyodide/');
+            this.updateProgress('加载 Pyodide…');
+            let resp=await this.workerClient.request('load',{ indexURL:'pyodide/', prefer: 'cdn' });
+            if(!resp||!resp.success) throw new Error(resp?.error||'加载 Pyodide 失败');
+            this.updateProgress('加载 Jedi 代码补全引擎…');
+            resp=await this.workerClient.request('init_jedi',{}); if(resp&&resp.success) this.workerClient.jediReady=true;
+            await this.trySetupInterrupt();
+            this.updateLoadingText('正在初始化编辑器…');
+            this.updateProgress('加载 Monaco 编辑器...');
+            await this.loadMonaco();
+            // Theme sync
+            const saved = StorageManager.getTheme && StorageManager.getTheme();
+            const initialDark = document.documentElement.classList.contains('dark-mode');
+            const dark = (saved === null) ? initialDark : (saved === 'dark');
+            if(dark){
+                document.body.classList.add('dark-mode');
+                document.documentElement.classList.add('dark-mode');
+                this.monaco.editor.setTheme('vs-dark');
+            } else {
+                document.body.classList.remove('dark-mode');
+                document.documentElement.classList.remove('dark-mode');
+                this.monaco.editor.setTheme('vs');
             }
+            const initialCode=StorageManager.getCode();
+            this.editor=new EditorManager('monaco-container', initialCode);
+            await this.editor.initialize(this.monaco);
+            // Initialize managers before idle warmup to avoid race
+            this.packageManager=new PackageManager(this.workerClient, outputElement);
+            this.codeExecutor=new CodeExecutor(this.workerClient, outputElement);
+            this.updateProgress('初始化代码补全...');
+            this.completionProvider=new CompletionProvider(this.workerClient,this.monaco);
+            await this.completionProvider.initialize();
+            this.completionProvider.register(this.editor.editor);
+            // Idle warmup after managers exist
+            const idle= window.requestIdleCallback || function(cb){ setTimeout(()=>cb({didTimeout:false,timeRemaining:()=>50}),800)};
+            idle(async()=>{ try{ const code=this.editor.getValue(); const pkgs=await this.packageManager.findNewPackages(code); if(pkgs.size>0) await this.packageManager.installPackages(pkgs,true); }catch(e){ console.warn('Idle warmup failed:',e);} });
+            this.setupEventListeners();
+            document.getElementById('output').textContent='✅ Python 环境准备就绪！\n💡 提示: 安装/补全/执行都在后台，不会阻塞页面';
+            this.updateLoadingText('加载完成!');
+            this.updateProgress('');
+            document.body.classList.remove('loading');
+            setTimeout(()=> document.getElementById('loader-overlay').style.display='none', 300);
+        } catch(err) {
+            console.error('Initialization failed:',err);
+            document.getElementById('output').textContent=`❌ 加载失败: ${err.message||err.toString()}`;
+            document.body.classList.remove('loading');
+            document.getElementById('loader-overlay').style.display='none';
+        }
         }
         updateLoadingText(t){ document.getElementById('loading-text').textContent=t; }
         updateProgress(t){ document.getElementById('loading-progress').textContent=t; }
@@ -488,15 +501,21 @@
         async stop(){ if(this.workerClient && this.workerClient.interrupt && this.workerClient.interrupt()){ Notification.show('⏹️ 已请求停止（将触发 KeyboardInterrupt）','warning'); return; } try{ await this.workerClient.restart(); Notification.show('⏹️ 已重启后台以停止任务','warning'); }catch(e){ Notification.show('❌ 停止失败：'+(e.message||e),'error'); } }
         async runCode(){ const runButton=document.getElementById('run-button'); const outputElement=document.getElementById('output'); const execTimeElement=document.getElementById('exec-time'); const status=document.querySelector('.status-indicator'); const jumpError=document.getElementById('jump-error');
             if(!this.workerClient||!this.editor){ Notification.show('⚠️ 环境未就绪','error'); return; }
-            try{ if(this.editor?.editor && this.errorDecorations?.length){ this.errorDecorations=this.editor.editor.deltaDecorations(this.errorDecorations,[]); } this.lastErrorLine=null; jumpError.style.display='none'; if(this.workerClient.interruptView){ Atomics.store(this.workerClient.interruptView,0,0); } }catch{}
+            try{ if(this.editor?.editor && this.errorDecorations?.length){ this.errorDecorations=this.editor.editor.deltaDecorations(this.errorDecorations,[]); } this.lastErrorLine=null; jumpError.style.display='none'; if(this.workerClient.interruptView){ Atomics.store(this.workerClient.interruptView,0,0); }
+                // Clear previous error markers to avoid stale highlights
+                try{ const model=this.editor?.editor?.getModel && this.editor.editor.getModel(); if(model && this.monaco?.editor?.setModelMarkers){ this.monaco.editor.setModelMarkers(model,'py',[]); } }catch{}
+            }catch{}
             runButton.disabled=true; runButton.textContent='⏳ 运行中...'; status.className='status-indicator status-running'; outputElement.textContent='🚀 正在执行代码...';
             try{ const code=this.editor.getValue(); const pkgs=await this.packageManager.findNewPackages(code); if(pkgs.size>0){ outputElement.textContent=`🔔 安装模块: ${Array.from(pkgs).join(', ')}...`; await this.packageManager.installPackages(pkgs,false); }
                 const result=await this.codeExecutor.execute(code);
-                if(result.success){ status.className='status-indicator status-success'; outputElement.textContent=result.output; execTimeElement.textContent=`✅ 执行完成 (${result.time}s)`; Notification.show('✅ 代码执行成功','success',2000);
+                if(result.success){ status.className='status-indicator status-success'; outputElement.textContent=result.output; execTimeElement.textContent=`✅ 执行完成 (${result.time}s)`;
+                    // Ensure markers are cleared after success
+                    try{ const model=this.editor?.editor?.getModel && this.editor.editor.getModel(); if(model && this.monaco?.editor?.setModelMarkers){ this.monaco.editor.setModelMarkers(model,'py',[]); } }catch{}
+                    Notification.show('✅ 代码执行成功','success',2000);
                 } else { status.className='status-indicator status-error'; outputElement.textContent=result.output; execTimeElement.textContent=`❌ 执行失败 (${result.time}s)`; const line=result.line; if(typeof line==='number' && this.editor?.editor){ try{ const m=this.monaco; const col = (result.col && Number.isFinite(result.col)) ? Math.max(1, result.col) : 1; this.editor.editor.revealLineInCenter(line);
-                        const range = new m.Range(line, col, line, col+1);
-                        this.errorDecorations=this.editor.editor.deltaDecorations(this.errorDecorations,[{ range: range, options:{ isWholeLine: !result.col, className:'error-line-decoration', glyphMarginClassName:'error-line-glyph' } }]); this.lastErrorLine=line; jumpError.style.display='inline-block';
-                        const model=this.editor.editor.getModel(); m.editor.setModelMarkers(model,'py',[{ startLineNumber: line, startColumn: col, endLineNumber: line, endColumn: Math.max(col,2), message: '运行出错，详见输出区', severity: m.MarkerSeverity.Error }]); }catch(e){ console.warn('Decorations failed:',e);} }
+                    const range = new m.Range(line, col, line, col+1);
+                    this.errorDecorations=this.editor.editor.deltaDecorations(this.errorDecorations,[{ range: range, options:{ isWholeLine: !result.col, className:'error-line-decoration', glyphMarginClassName:'error-line-glyph' } }]); this.lastErrorLine=line; jumpError.style.display='inline-block';
+                    const model=this.editor.editor.getModel(); m.editor.setModelMarkers(model,'py',[{ startLineNumber: line, startColumn: col, endLineNumber: line, endColumn: Math.max(col,2), message: '运行出错，详见输出区', severity: m.MarkerSeverity.Error }]); }catch(e){ console.warn('Decorations failed:',e);} }
                     Notification.show('❌ 代码执行出错','error'); }
             } catch(e){ status.className='status-indicator status-error'; outputElement.textContent=`❌ 执行失败: ${e.message}`; execTimeElement.textContent='❌ 执行中止'; Notification.show(`❌ ${e.message}`,'error'); }
             finally{ try{ if(this.workerClient.interruptView) Atomics.store(this.workerClient.interruptView,0,0); }catch{} runButton.disabled=false; runButton.textContent='▶️ 运行'; }
