@@ -110,8 +110,8 @@
         .icon-button:focus-visible[data-tooltip][data-tooltip-pos="bottom"]::after { opacity: 0.95; transform: translate(-50%, 12px); }
         .playground-wrapper { display: flex; flex: 1; gap: 20px; overflow: hidden; }
         .panel { background: var(--panel-bg); padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px var(--shadow); display: flex; flex-direction: column; width: 100%; border: 1px solid var(--panel-border); }
-        .editor-panel { flex-basis: 60%; }
-        .output-panel { flex-basis: 40%; }
+        .editor-panel { flex-basis: 50%; }
+        .output-panel { flex-basis: 50%; }
         .template-selector-wrapper { margin-bottom: 15px; display: flex; gap: 10px; align-items: center; }
         .template-selector-wrapper label { white-space: nowrap; font-weight: 500; }
         #template-selector { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--panel-border); font-size: 14px; background: var(--panel-bg); color: var(--fg); }
@@ -180,6 +180,9 @@
         .monaco-scrollable-element > .scrollbar { background: transparent !important; }
         .monaco-scrollable-element > .scrollbar > .slider { background: var(--scrollbar-thumb) !important; border-radius: 8px !important; }
         .monaco-scrollable-element > .scrollbar > .slider:hover { background: var(--scrollbar-thumb-hover) !important; }
+        /* Zoom hint bubble */
+        .zoom-hint { position: fixed; right: 20px; bottom: 80px; background: var(--panel-bg); color: var(--fg); border:1px solid var(--panel-border); box-shadow: 0 4px 12px var(--shadow); padding: 6px 10px; border-radius: 6px; font-size: 12px; z-index: 1200; opacity: 0; transform: translateY(10px); transition: opacity .15s ease, transform .15s ease; }
+        .zoom-hint.show { opacity: .95; transform: translateY(0); }
     </style>
 </head>
 <body class="loading">
@@ -253,7 +256,7 @@
     </div>
 </div>
 <script>
-    const CONFIG = { EDITOR:{ fontSize:{desktop:18,mobile:16}, lineHeight:{desktop:28,mobile:24}, debounceMs:1000, font:"'JetBrains Mono', 'LXGW WenKai Screen', monospace" }, PACKAGES:{ skipStubs:['numpy'], debounceMs:1500, slowLibraries:['pandas','numpy','scipy','sklearn','tensorflow','torch','cv2','PIL'] }, COMPLETION:{ triggerChars:['.'], cacheExpireMs:1000, requestTimeoutMs:10000, maxSuggestions:30, warmupTimeoutMs:8000 }, RUNTIME:{ executionTimeoutMs:30000, mobileBreakpoint:768 }, FORBIDDEN_MODULES:['subprocess','os.system','__import__','eval','exec'] };
+    const CONFIG = { EDITOR:{ fontSize:{desktop:18,mobile:16}, lineHeight:{desktop:28,mobile:24}, debounceMs:1000, font:"'JetBrains Mono', 'LXGW WenKai Screen', monospace", lineHeightFactor: 1.6 }, PACKAGES:{ skipStubs:['numpy'], debounceMs:1500, slowLibraries:['pandas','numpy','scipy','sklearn','tensorflow','torch','cv2','PIL'] }, COMPLETION:{ triggerChars:['.'], cacheExpireMs:1000, requestTimeoutMs:10000, maxSuggestions:30, warmupTimeoutMs:8000 }, RUNTIME:{ executionTimeoutMs:30000, mobileBreakpoint:768 }, FORBIDDEN_MODULES:['subprocess','os.system','__import__','eval','exec'] };
 
     class WorkerClient { constructor(workerPath, outputEl, progressEl){ this.workerPath=workerPath; this.worker=null; this.reqId=1; this.pending=new Map(); this.outputEl=outputEl; this.progressEl=progressEl; this.indexURL='pyodide/'; this.jediReady=false; this.interruptView=null; }
         async init(indexURL='pyodide/'){ this.indexURL=indexURL; return new Promise((res,rej)=>{ try{ this.worker=new Worker(this.workerPath||'py-worker.js'); this.worker.onmessage=(e)=>this._onMessage(e); res(); }catch(e){ rej(e); } }); }
@@ -267,6 +270,16 @@
     }
 
     class Notification { static show(msg,type='info',duration=3000){ const n=document.createElement('div'); n.className=`notification ${type}`; n.textContent=msg; document.body.appendChild(n); setTimeout(()=>{ n.style.animation='slideOut .2s ease-out forwards'; setTimeout(()=>n.remove(),200); },duration); } }
+
+    // New: simple floating zoom hint switched to Notification style
+    class ZoomHint {
+        static _last = { editor: null, output: null };
+        static show(text, kind='info', duration=700){
+            try { Notification.show(text, kind, duration); } catch {}
+        }
+        static showEditor(px){ const v = Math.round(Number(px)||0); if(!v) return; if(this._last.editor===v) return; this._last.editor=v; this.show(`编辑器：${v}px`,'info',700); }
+        static showOutput(px){ const v = Math.round(Number(px)||0); if(!v) return; if(this._last.output===v) return; this._last.output=v; this.show(`输出：${v}px`,'info',700); }
+    }
 
     class StorageManager { static KEY_CODE='pythonEditorCode'; static KEY_THEME='pythonEditorTheme';
         // Add keys for zoom persistence
@@ -282,8 +295,9 @@
         static getOutputFontSize(){ try{ const v=localStorage.getItem(this.KEY_OUTPUT_FONT); return v? Number(v) : null; }catch{ return null; } }
     }
 
-    class EditorManager { constructor(containerId, initialCode){ this.container=document.getElementById(containerId); this.editor=null; this.initialCode=initialCode; this.changeListeners=[]; this._fontLineRatio=null; }
-        async initialize(monaco){ return new Promise((resolve)=>{ const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint; const defaultFont=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop; const defaultLine=isMobile?CONFIG.EDITOR.lineHeight.mobile:CONFIG.EDITOR.lineHeight.desktop; const savedFont=StorageManager.getEditorFontSize(); const baseFont = (savedFont && Number.isFinite(savedFont)) ? savedFont : defaultFont; const ratio = defaultLine / defaultFont; const savedLine=StorageManager.getEditorLineHeight(); const baseLine = (savedLine && Number.isFinite(savedLine)) ? savedLine : Math.max( Math.round(baseFont * ratio), 12 ); this._fontLineRatio = ratio > 1 ? ratio : 1.4; this.editor = monaco.editor.create(this.container, {
+    class EditorManager { constructor(containerId, initialCode){ this.container=document.getElementById(containerId); this.editor=null; this.initialCode=initialCode; this.changeListeners=[]; this._lastShownFs=null; }
+        async initialize(monaco){ return new Promise((resolve)=>{ const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint; const defaultFont=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop; const savedFont=StorageManager.getEditorFontSize(); const baseFont = (savedFont && Number.isFinite(savedFont)) ? savedFont : defaultFont; const baseLine = Math.max(12, Math.round(baseFont * (CONFIG.EDITOR.lineHeightFactor||1.6))); this._lastShownFs = Math.round(baseFont);
+            this.editor = monaco.editor.create(this.container, {
             value: this.initialCode,
             language: 'python',
             theme: document.body.classList.contains('dark-mode') ? 'vs-dark' : 'vs',
@@ -300,21 +314,20 @@
             insertSpaces: true,
             mouseWheelZoom: true
         }); this.editor.onDidChangeModelContent(()=>{ const code=this.getValue(); StorageManager.saveCode(code); this.changeListeners.forEach(cb=>cb(code)); try{ const templateSelector=document.getElementById('template-selector'); if(!templateSelector) return; const selectedTemplateKey=templateSelector.value; if(selectedTemplateKey && typeof codeTemplates!=='undefined' && codeTemplates[selectedTemplateKey]!==code){ templateSelector.value=''; const url=new URL(window.location); if(url.searchParams.has('template')){ url.searchParams.delete('template'); window.history.replaceState({},'',url); } } }catch(e){ console.warn('Error decoupling template:',e);} });
-        // Persist font size when user zooms via official Ctrl+Wheel
+        // Persist font size and keep line height proportional; also show zoom hint
         try {
             this.editor.onDidChangeConfiguration((e)=>{
                 try {
                     const EO = monaco.editor && monaco.editor.EditorOption;
-                    let changedFont = false;
-                    if (e && typeof e.hasChanged === 'function' && EO) {
-                        if (EO.fontSize && e.hasChanged(EO.fontSize)) changedFont = true;
-                        if (EO.fontInfo && e.hasChanged(EO.fontInfo)) changedFont = true;
-                    }
-                    if (!changedFont) return;
-                    const fs = (this.editor.getOption && EO && this.editor.getOption(EO.fontSize)) || baseFont;
-                    const lh = Math.max(12, Math.round(fs * (this._fontLineRatio || 1.5)));
+                    if (!(e && typeof e.hasChanged === 'function' && EO)) return;
+                    const changed = (EO.fontSize && e.hasChanged(EO.fontSize)) || (EO.fontInfo && e.hasChanged(EO.fontInfo));
+                    if (!changed) return;
+                    const fsRaw = (this.editor.getOption && EO && this.editor.getOption(EO.fontSize)) || baseFont;
+                    const fs = Math.round(Number(fsRaw)||baseFont);
+                    const lh = Math.max(12, Math.round(fs * (CONFIG.EDITOR.lineHeightFactor||1.6)));
+                    this.editor.updateOptions({ lineHeight: lh });
                     StorageManager.setEditorFontSize(fs);
-                    StorageManager.setEditorLineHeight(lh);
+                    if (this._lastShownFs !== fs) { this._lastShownFs = fs; ZoomHint.showEditor(fs); }
                 } catch {}
             });
         } catch {}
@@ -322,7 +335,7 @@
         getValue(){ return this.editor? this.editor.getValue():''; }
         setValue(code){ if(this.editor) this.editor.setValue(code); }
         onChange(cb){ this.changeListeners.push(cb); }
-        setFontSize(newSize){ if(!this.editor) return; const min=10, max=32; const fs = Math.max(min, Math.min(max, Math.round(newSize))); const lh = Math.max(12, Math.round(fs * (this._fontLineRatio || 1.5))); this.editor.updateOptions({ fontSize: fs, lineHeight: lh }); StorageManager.setEditorFontSize(fs); StorageManager.setEditorLineHeight(lh); }
+        setFontSize(newSize){ if(!this.editor) return; const min=10, max=32; const fs = Math.max(min, Math.min(max, Math.round(newSize))); const lh = Math.max(12, Math.round(fs * (CONFIG.EDITOR.lineHeightFactor||1.6))); this.editor.updateOptions({ fontSize: fs, lineHeight: lh }); StorageManager.setEditorFontSize(fs); this._lastShownFs = fs; ZoomHint.showEditor(fs); }
     }
 
     class PackageManager { constructor(workerClient, outputElement){ this.workerClient=workerClient; this.outputElement=outputElement; this.installing=false; this.installDebounce=null; this.badgeEl=document.getElementById('bg-install-badge'); }
@@ -515,6 +528,7 @@
                     const next = clamp(Math.round(curPx + dir*step), 10, 28);
                     outputEl.style.fontSize = `${next}px`;
                     StorageManager.setOutputFontSize(next);
+                    ZoomHint.showOutput(next);
                 }, { passive: false });
             } catch (e) { console.warn('Bind wheel zoom failed:', e); }
 
