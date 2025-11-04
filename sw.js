@@ -60,7 +60,23 @@ self.addEventListener('fetch', (event) => {
 
     // Always bypass cache for worker script to avoid stale worker
     if (url.pathname.endsWith('/py-worker.js') || url.pathname.endsWith('py-worker.js')) {
-        event.respondWith(fetch(req));
+        event.respondWith((async () => {
+            try {
+                const res = await fetch(req);
+                // If network ok, return it
+                if (res && res.ok) return res;
+                // Fallback to cache when network gives non-ok
+                const cached = await caches.match(req) || await caches.match('./py-worker.js');
+                if (cached) return cached;
+                return res; // may be non-ok, but return something
+            } catch (e) {
+                // Network error: try cache
+                const cached = await caches.match(req) || await caches.match('./py-worker.js');
+                if (cached) return cached;
+                // Last resort: error response so we don't hang the fetch
+                return new Response('/* worker unavailable */', { status: 503, headers: { 'Content-Type': 'application/javascript' } });
+            }
+        })());
         return;
     }
 

@@ -110,8 +110,8 @@
         .icon-button:focus-visible[data-tooltip][data-tooltip-pos="bottom"]::after { opacity: 0.95; transform: translate(-50%, 12px); }
         .playground-wrapper { display: flex; flex: 1; gap: 20px; overflow: hidden; }
         .panel { background: var(--panel-bg); padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px var(--shadow); display: flex; flex-direction: column; width: 100%; border: 1px solid var(--panel-border); }
-        .editor-panel { flex-basis: 50%; }
-        .output-panel { flex-basis: 50%; }
+        .editor-panel { flex-basis: 48%; }
+        .output-panel { flex-basis: 52%; }
         .template-selector-wrapper { margin-bottom: 15px; display: flex; gap: 10px; align-items: center; }
         .template-selector-wrapper label { white-space: nowrap; font-weight: 500; }
         #template-selector { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--panel-border); font-size: 14px; background: var(--panel-bg); color: var(--fg); }
@@ -237,6 +237,7 @@
         </div>
         <div class="modal-footer">
             <button class="btn-secondary" onclick="document.getElementById('share-modal').classList.remove('active')">关闭</button>
+            <button class="btn-primary" id="open-share-url-button">打开链接</button>
         </div>
     </div>
 </div>
@@ -275,12 +276,404 @@
         </div>
         <div class="modal-footer">
             <button class="btn-secondary" id="reset-fonts-button">重置字号</button>
+            <button class="btn-primary" id="copy-shortlink-button">复制短链</button>
             <button class="btn-primary" id="close-settings-button">关闭</button>
         </div>
     </div>
 </div>
 <script>
-    const CONFIG = { EDITOR:{ fontSize:{desktop:18,mobile:16}, lineHeight:{desktop:28,mobile:24}, debounceMs:1000, font:"'JetBrains Mono', 'LXGW WenKai Screen', monospace", lineHeightFactor: 1.6 }, PACKAGES:{ skipStubs:['numpy'], debounceMs:1500, slowLibraries:['pandas','numpy','scipy','sklearn','tensorflow','torch','cv2','PIL'] }, COMPLETION:{ triggerChars:['.'], cacheExpireMs:1000, requestTimeoutMs:10000, maxSuggestions:30, warmupTimeoutMs:8000 }, RUNTIME:{ executionTimeoutMs:30000, mobileBreakpoint:768 }, FORBIDDEN_MODULES:['subprocess','os.system','__import__','eval','exec'] };
+    // Minimal LZ-String (MIT License) - only URI-safe APIs used
+    /*! LZ-String 1.4.4 (MIT) https://github.com/pieroxy/lz-string */
+    (function(global){
+      var f=String.fromCharCode;
+      var LZString={
+        _keyStrUriSafe:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$",
+        _getBaseValue:function(alphabet, character){
+          var baseReverseDic = {};
+          if (!baseReverseDic[alphabet]){
+            baseReverseDic[alphabet] = {};
+            for (var i=0; i<alphabet.length; i++){
+              baseReverseDic[alphabet][alphabet.charAt(i)] = i;
+            }
+          }
+          return baseReverseDic[alphabet][character];
+        },
+        compressToEncodedURIComponent:function (input) {
+          if (input == null) return "";
+          return LZString._compress(input, 6, function(a){return LZString._keyStrUriSafe.charAt(a);});
+        },
+        decompressFromEncodedURIComponent:function (input) {
+          if (input == null) return "";
+          if (input == "") return null;
+          input = input.replace(/ /g, "+");
+          return LZString._decompress(input.length, 32, function(index){return LZString._getBaseValue(LZString._keyStrUriSafe, input.charAt(index));});
+        },
+        _compress:function (uncompressed, bitsPerChar, getCharFromInt) {
+          if (uncompressed == null) return "";
+          var i, value,
+              context_dictionary= {},
+              context_dictionaryToCreate= {},
+              context_c="",
+              context_wc="",
+              context_w="",
+              context_enlargeIn=2, // Compensate for the first entry which should not count
+              context_dictSize=3,
+              context_numBits=2,
+              context_data=[],
+              context_data_val=0,
+              context_data_position=0,
+              ii;
+
+          for (ii = 0; ii < uncompressed.length; ii += 1) {
+            context_c = uncompressed.charAt(ii);
+            if (!Object.prototype.hasOwnProperty.call(context_dictionary,context_c)) {
+              context_dictionary[context_c] = context_dictSize++;
+              context_dictionaryToCreate[context_c] = true;
+            }
+            context_wc = context_w + context_c;
+            if (Object.prototype.hasOwnProperty.call(context_dictionary,context_wc)) {
+              context_w = context_wc;
+            } else {
+              if (Object.prototype.hasOwnProperty.call(context_dictionaryToCreate,context_w)) {
+                if (context_w.charCodeAt(0)<256) {
+                  for (i=0 ; i<context_numBits ; i++) {
+                    context_data_val = (context_data_val << 1);
+                    if (context_data_position == bitsPerChar-1) {
+                      context_data_position = 0;
+                      context_data.push(getCharFromInt(context_data_val));
+                      context_data_val = 0;
+                    } else context_data_position++;
+                  }
+                  value = context_w.charCodeAt(0);
+                  for (i=0 ; i<8 ; i++) {
+                    context_data_val = (context_data_val << 1) | (value & 1);
+                    if (context_data_position == bitsPerChar-1) {
+                      context_data_position = 0;
+                      context_data.push(getCharFromInt(context_data_val));
+                      context_data_val = 0;
+                    } else context_data_position++;
+                    value = value >> 1;
+                  }
+                } else {
+                  value = 1;
+                  for (i=0 ; i<context_numBits ; i++) {
+                    context_data_val = (context_data_val << 1) | value;
+                    if (context_data_position == bitsPerChar-1) {
+                      context_data_position = 0;
+                      context_data.push(getCharFromInt(context_data_val));
+                      context_data_val = 0;
+                    } else context_data_position++;
+                    value = 0;
+                  }
+                  value = context_w.charCodeAt(0);
+                  for (i=0 ; i<16 ; i++) {
+                    context_data_val = (context_data_val << 1) | (value & 1);
+                    if (context_data_position == bitsPerChar-1) {
+                      context_data_position = 0;
+                      context_data.push(getCharFromInt(context_data_val));
+                      context_data_val = 0;
+                    } else context_data_position++;
+                    value = value >> 1;
+                  }
+                }
+                context_enlargeIn--;
+                if (context_enlargeIn == 0) {
+                  context_enlargeIn = Math.pow(2, context_numBits);
+                  context_numBits++;
+                }
+                delete context_dictionaryToCreate[context_w];
+              } else {
+                value = context_dictionary[context_w];
+                for (i=0 ; i<context_numBits ; i++) {
+                  context_data_val = (context_data_val << 1) | (value & 1);
+                  if (context_data_position == bitsPerChar-1) {
+                    context_data_position = 0;
+                    context_data.push(getCharFromInt(context_data_val));
+                    context_data_val = 0;
+                  } else context_data_position++;
+                  value = value >> 1;
+                }
+              }
+              context_enlargeIn--;
+              if (context_enlargeIn == 0) {
+                context_enlargeIn = Math.pow(2, context_numBits);
+                context_numBits++;
+              }
+              context_dictionary[context_wc] = context_dictSize++;
+              context_w = String(context_c);
+            }
+          }
+
+          if (context_w !== "") {
+            if (Object.prototype.hasOwnProperty.call(context_dictionaryToCreate,context_w)) {
+              if (context_w.charCodeAt(0)<256) {
+                for (i=0 ; i<context_numBits ; i++) {
+                  context_data_val = (context_data_val << 1);
+                  if (context_data_position == bitsPerChar-1) {
+                    context_data_position = 0;
+                    context_data.push(getCharFromInt(context_data_val));
+                    context_data_val = 0;
+                  } else context_data_position++;
+                }
+                value = context_w.charCodeAt(0);
+                for (i=0 ; i<8 ; i++) {
+                  context_data_val = (context_data_val << 1) | (value & 1);
+                  if (context_data_position == bitsPerChar-1) {
+                    context_data_position = 0;
+                    context_data.push(getCharFromInt(context_data_val));
+                    context_data_val = 0;
+                  } else context_data_position++;
+                  value = value >> 1;
+                }
+              } else {
+                value = 1;
+                for (i=0 ; i<context_numBits ; i++) {
+                  context_data_val = (context_data_val << 1) | value;
+                  if (context_data_position == bitsPerChar-1) {
+                    context_data_position = 0;
+                    context_data.push(getCharFromInt(context_data_val));
+                    context_data_val = 0;
+                  } else context_data_position++;
+                  value = 0;
+                }
+                value = context_w.charCodeAt(0);
+                for (i=0 ; i<16 ; i++) {
+                  context_data_val = (context_data_val << 1) | (value & 1);
+                  if (context_data_position == bitsPerChar-1) {
+                    context_data_position = 0;
+                    context_data.push(getCharFromInt(context_data_val));
+                    context_data_val = 0;
+                  } else context_data_position++;
+                  value = value >> 1;
+                }
+              }
+              context_enlargeIn--;
+              if (context_enlargeIn == 0) {
+                context_enlargeIn = Math.pow(2, context_numBits);
+                context_numBits++;
+              }
+              delete context_dictionaryToCreate[context_w];
+            } else {
+              value = context_dictionary[context_w];
+              for (i=0 ; i<context_numBits ; i++) {
+                context_data_val = (context_data_val << 1) | (value & 1);
+                if (context_data_position == bitsPerChar-1) {
+                  context_data_position = 0;
+                  context_data.push(getCharFromInt(context_data_val));
+                  context_data_val = 0;
+                } else context_data_position++;
+                value = value >> 1;
+              }
+            }
+            context_enlargeIn--;
+            if (context_enlargeIn == 0) {
+              context_enlargeIn = Math.pow(2, context_numBits);
+              context_numBits++;
+            }
+          }
+
+          value = 2;
+          for (i=0 ; i<context_numBits ; i++) {
+            context_data_val = (context_data_val << 1) | (value & 1);
+            if (context_data_position == bitsPerChar-1) {
+              context_data_position = 0;
+              context_data.push(getCharFromInt(context_data_val));
+              context_data_val = 0;
+            } else context_data_position++;
+            value = value >> 1;
+          }
+
+          // Flush the last char
+          while (true) {
+            context_data_val = (context_data_val << 1);
+            if (context_data_position == bitsPerChar-1) {
+              context_data.push(getCharFromInt(context_data_val));
+              break;
+            }
+            else context_data_position++;
+          }
+          return context_data.join("");
+        },
+        _decompress:function (length, resetValue, getNextValue) {
+          var dictionary = [],
+              next,
+              enlargeIn = 4,
+              dictSize = 4,
+              numBits = 3,
+              entry = "",
+              result = [],
+              i,
+              w,
+              bits, resb, maxpower, power,
+              c,
+              data = {val:getNextValue(0), position:resetValue, index:1};
+
+          for (i = 0; i < 3; i += 1) {
+            dictionary[i] = i;
+          }
+
+          bits = 0;
+          maxpower = Math.pow(2,2);
+          power=1;
+          while (power!=maxpower) {
+            resb = data.val & data.position;
+            data.position >>= 1;
+            if (data.position == 0) {
+              data.position = resetValue;
+              data.val = getNextValue(data.index++);
+            }
+            bits |= (resb>0 ? 1 : 0) * power;
+            power <<= 1;
+          }
+
+          switch (next = bits) {
+            case 0:
+              bits = 0;
+              maxpower = Math.pow(2,8);
+              power=1;
+              while (power!=maxpower) {
+                resb = data.val & data.position;
+                data.position >>= 1;
+                if (data.position == 0) {
+                  data.position = resetValue;
+                  data.val = getNextValue(data.index++);
+                }
+                bits |= (resb>0 ? 1 : 0) * power;
+                power <<= 1;
+              }
+              c = f(bits);
+              break;
+            case 1:
+              bits = 0;
+              maxpower = Math.pow(2,16);
+              power=1;
+              while (power!=maxpower) {
+                resb = data.val & data.position;
+                data.position >>= 1;
+                if (data.position == 0) {
+                  data.position = resetValue;
+                  data.val = getNextValue(data.index++);
+                }
+                bits |= (resb>0 ? 1 : 0) * power;
+                power <<= 1;
+              }
+              c = f(bits);
+              break;
+            case 2:
+              return "";
+          }
+          dictionary[3] = c;
+          w = c;
+          result.push(c);
+          while (true) {
+            if (data.index > length) {
+              return "";
+            }
+
+            bits = 0;
+            maxpower = Math.pow(2,numBits);
+            power=1;
+            while (power!=maxpower) {
+              resb = data.val & data.position;
+              data.position >>= 1;
+              if (data.position == 0) {
+                data.position = resetValue;
+                data.val = getNextValue(data.index++);
+              }
+              bits |= (resb>0 ? 1 : 0) * power;
+              power <<= 1;
+            }
+
+            switch (c = bits) {
+              case 0:
+                bits = 0;
+                maxpower = Math.pow(2,8);
+                power=1;
+                while (power!=maxpower) {
+                  resb = data.val & data.position;
+                  data.position >>= 1;
+                  if (data.position == 0) {
+                    data.position = resetValue;
+                    data.val = getNextValue(data.index++);
+                  }
+                  bits |= (resb>0 ? 1 : 0) * power;
+                  power <<= 1;
+                }
+                dictionary[dictSize++] = f(bits);
+                c = dictSize-1;
+                enlargeIn--;
+                break;
+              case 1:
+                bits = 0;
+                maxpower = Math.pow(2,16);
+                power=1;
+                while (power!=maxpower) {
+                  resb = data.val & data.position;
+                  data.position >>= 1;
+                  if (data.position == 0) {
+                    data.position = resetValue;
+                    data.val = getNextValue(data.index++);
+                  }
+                  bits |= (resb>0 ? 1 : 0) * power;
+                  power <<= 1;
+                }
+                dictionary[dictSize++] = f(bits);
+                c = dictSize-1;
+                enlargeIn--;
+                break;
+              case 2:
+                return result.join("");
+            }
+
+            if (enlargeIn == 0) {
+              enlargeIn = Math.pow(2, numBits);
+              numBits++;
+            }
+
+            if (dictionary[c]) {
+              entry = dictionary[c];
+            } else {
+              if (c === dictSize) {
+                entry = w + w.charAt(0);
+              } else {
+                return null;
+              }
+            }
+            result.push(entry);
+            dictionary[dictSize++] = w + entry.charAt(0);
+            enlargeIn--;
+
+            w = entry;
+
+            if (enlargeIn == 0) {
+              enlargeIn = Math.pow(2, numBits);
+              numBits++;
+            }
+          }
+        }
+      };
+      global.LZString=LZString;
+    })(window);
+
+    // Helper: build short permalink /s/<payload> from current location
+    function buildShortPermalink(state){
+        try{
+            const base = new URL('./s/', window.location.href);
+            const payload = window.LZString.compressToEncodedURIComponent(JSON.stringify(state));
+            return base.toString() + payload;
+        }catch(e){
+            // Fallback: legacy ?code=
+            try{
+                const legacy=btoa(unescape(encodeURIComponent(state && state.c ? state.c : '')));
+                const u = new URL(window.location.href);
+                u.search = '';
+                u.hash = '';
+                return `${u.origin}${u.pathname.replace(/index\.html$/, '')}?code=${encodeURIComponent(legacy)}`;
+            }catch{ return window.location.href; }
+        }
+    }
+
+    const CONFIG = { EDITOR:{ fontSize:{desktop:18,mobile:16}, lineHeight:{desktop:28,mobile:24}, debounceMs:1000, font:"'JetBrains Mono', 'LXGW WenKai Screen', monospace", lineHeightFactor: 1.7 }, PACKAGES:{ skipStubs:['numpy'], debounceMs:1500, slowLibraries:['pandas','numpy','scipy','sklearn','tensorflow','torch','cv2','PIL'] }, COMPLETION:{ triggerChars:['.'], cacheExpireMs:1000, requestTimeoutMs:10000, maxSuggestions:30, warmupTimeoutMs:8000 }, RUNTIME:{ executionTimeoutMs:30000, mobileBreakpoint:768 }, FORBIDDEN_MODULES:['subprocess','os.system','__import__','eval','exec'] };
 
     class WorkerClient { constructor(workerPath, outputEl, progressEl){ this.workerPath=workerPath; this.worker=null; this.reqId=1; this.pending=new Map(); this.outputEl=outputEl; this.progressEl=progressEl; this.indexURL='pyodide/'; this.jediReady=false; this.interruptView=null; }
         async init(indexURL='pyodide/'){ this.indexURL=indexURL; return new Promise((res,rej)=>{ try{ this.worker=new Worker(this.workerPath||'py-worker.js'); this.worker.onmessage=(e)=>this._onMessage(e); res(); }catch(e){ rej(e); } }); }
@@ -320,7 +713,7 @@
     }
 
     class EditorManager { constructor(containerId, initialCode){ this.container=document.getElementById(containerId); this.editor=null; this.initialCode=initialCode; this.changeListeners=[]; this._lastShownFs=null; }
-        async initialize(monaco){ return new Promise((resolve)=>{ const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint; const defaultFont=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop; const savedFont=StorageManager.getEditorFontSize(); const baseFont = (savedFont && Number.isFinite(savedFont)) ? savedFont : defaultFont; const baseLine = Math.max(12, Math.round(baseFont * (CONFIG.EDITOR.lineHeightFactor||1.6))); this._lastShownFs = Math.round(baseFont);
+        async initialize(monaco){ return new Promise((resolve)=>{ const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint; const defaultFont=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop; const savedFont=StorageManager.getEditorFontSize(); const baseFont = (savedFont && Number.isFinite(savedFont)) ? savedFont : defaultFont; const baseLine = Math.max(12, Math.round(baseFont * (CONFIG.EDITOR.lineHeightFactor||1.7))); this._lastShownFs = Math.round(baseFont);
             this.editor = monaco.editor.create(this.container, {
             value: this.initialCode,
             language: 'python',
@@ -361,7 +754,7 @@
                     if (!changed) return;
                     const fsRaw = (this.editor.getOption && EO && this.editor.getOption(EO.fontSize)) || baseFont;
                     const fs = Math.round(Number(fsRaw)||baseFont);
-                    const lh = Math.max(12, Math.round(fs * (CONFIG.EDITOR.lineHeightFactor||1.6)));
+                    const lh = Math.max(12, Math.round(fs * (CONFIG.EDITOR.lineHeightFactor||1.7)));
                     this.editor.updateOptions({ lineHeight: lh });
                     StorageManager.setEditorFontSize(fs);
                     if (this._lastShownFs !== fs) { this._lastShownFs = fs; ZoomHint.showEditor(fs); }
@@ -372,7 +765,7 @@
         getValue(){ return this.editor? this.editor.getValue():''; }
         setValue(code){ if(this.editor) this.editor.setValue(code); }
         onChange(cb){ this.changeListeners.push(cb); }
-        setFontSize(newSize){ if(!this.editor) return; const min=10, max=32; const fs = Math.max(min, Math.min(max, Math.round(newSize))); const lh = Math.max(12, Math.round(fs * (CONFIG.EDITOR.lineHeightFactor||1.6))); this.editor.updateOptions({ fontSize: fs, lineHeight: lh }); StorageManager.setEditorFontSize(fs); this._lastShownFs = fs; ZoomHint.showEditor(fs); }
+        setFontSize(newSize){ if(!this.editor) return; const min=10, max=32; const fs = Math.max(min, Math.min(max, Math.round(newSize))); const lh = Math.max(12, Math.round(fs * (CONFIG.EDITOR.lineHeightFactor||1.7))); this.editor.updateOptions({ fontSize: fs, lineHeight: lh }); StorageManager.setEditorFontSize(fs); this._lastShownFs = fs; ZoomHint.showEditor(fs); }
     }
 
     class PackageManager { constructor(workerClient, outputElement){ this.workerClient=workerClient; this.outputElement=outputElement; this.installing=false; this.installDebounce=null; this.badgeEl=document.getElementById('bg-install-badge'); }
@@ -503,6 +896,26 @@
             const idle= window.requestIdleCallback || function(cb){ setTimeout(()=>cb({didTimeout:false,timeRemaining:()=>50}),800)};
             idle(async()=>{ try{ const code=this.editor.getValue(); const pkgs=await this.packageManager.findNewPackages(code); if(pkgs.size>0) await this.packageManager.installPackages(pkgs,true); }catch(e){ console.warn('Idle warmup failed:',e);} });
             this.setupEventListeners();
+            // Apply pending permalink state (scroll/template) after editor exists
+            try{
+                const pending = window.__pendingPermalink;
+                if(pending){
+                    if(typeof pending.est==='number'){ try{ this.editor.editor.setScrollTop(pending.est); }catch{} }
+                    if(typeof pending.esl==='number'){ try{ this.editor.editor.setScrollLeft(pending.esl); }catch{} }
+                    if(typeof pending.ost==='number'){ try{ document.getElementById('output').scrollTop = pending.ost; }catch{} }
+                    if(pending.tpl){
+                        try{
+                            const sel=document.getElementById('template-selector');
+                            if(sel){
+                                // 仅反映选择，不覆盖已加载的代码
+                                const exists = Array.from(sel.options).some(o=>o.value===pending.tpl);
+                                if(exists) sel.value = pending.tpl;
+                            }
+                        }catch{}
+                    }
+                    window.__pendingPermalink = null;
+                }
+            }catch{}
             document.getElementById('output').textContent='✅ Python 环境准备就绪！\n💡 提示: 安装/补全/执行都在后台，不会阻塞页面';
             this.updateLoadingText('加载完成!');
             this.updateProgress('');
@@ -534,6 +947,7 @@
             const outputValue=document.getElementById('output-font-value');
             const resetFontsBtn=document.getElementById('reset-fonts-button');
             const closeSettingsBtn=document.getElementById('close-settings-button');
+            const copyShortBtn=document.getElementById('copy-shortlink-button');
 
             runButton.addEventListener('click',()=>this.runCode());
             stopButton.addEventListener('click',()=>this.stop());
@@ -633,6 +1047,34 @@
                 Notification.show('🔁 已重置字号','info',1200);
             });
             closeSettingsBtn.addEventListener('click',()=> settingsModal.classList.remove('active'));
+            if(copyShortBtn){
+                copyShortBtn.addEventListener('click',()=>{
+                    try{
+                        const tplSel = document.getElementById('template-selector');
+                        const tpl = tplSel ? (tplSel.value||'') : '';
+                        const EO=this.monaco?.editor?.EditorOption;
+                        const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint;
+                        const def=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop;
+                        const efs = EO? Math.round(this.editor?.editor?.getOption(EO.fontSize) || def) : def;
+                        const outEl=document.getElementById('output');
+                        const ofs = Math.round(parseFloat(getComputedStyle(outEl).fontSize)||15);
+                        // Scroll positions
+                        let est=0, esl=0, ost=0;
+                        try{ est = Math.round(this.editor?.editor?.getScrollTop()||0); esl = Math.round(this.editor?.editor?.getScrollLeft()||0); }catch{}
+                        try{ ost = Math.round(outEl.scrollTop||0); }catch{}
+                        const theme=(StorageManager.getTheme&&StorageManager.getTheme())||(document.body.classList.contains('dark-mode')?'dark':'light');
+                        const code=this.editor.getValue();
+                        const state={ v:2, c:code, efs, ofs, th:theme, tpl: tpl||undefined, est, esl, ost };
+                        const url=buildShortPermalink(state);
+                        navigator.clipboard.writeText(url).then(()=>{
+                            Notification.show('✅ 短链已复制到剪贴板','success');
+                        }).catch(()=>{
+                            // 回退：在通知里显示，便于手动复制
+                            try{ Notification.show(url,'info',4000);}catch{}
+                        });
+                    }catch(e){ Notification.show('❌ 复制短链失败','error'); }
+                });
+            }
 
             // Focus tracking for zoom target
             try{ this.editor?.editor?.onDidFocusEditorText(()=>{ this.activeArea='editor'; }); }catch{}
@@ -724,8 +1166,35 @@
             finally{ try{ if(this.workerClient.interruptView) Atomics.store(this.workerClient.interruptView,0,0); }catch{} runButton.disabled=false; runButton.textContent='▶️ 运行'; }
         }
         async formatCode(){ Notification.show('💡 代码格式化功能开发中...','info'); }
-        shareCode(){ const code=this.editor.getValue(); const encoded=btoa(unescape(encodeURIComponent(code))); const shareUrl=`${window.location.origin}${window.location.pathname}?code=${encoded}`; navigator.clipboard.writeText(shareUrl).then(()=>{ const modal=document.getElementById('share-modal'); document.getElementById('share-url').value=shareUrl; modal.classList.add('active'); Notification.show('✅ 分享链接已复制到剪贴板','success'); }).catch(()=>{ Notification.show('❌ 复制失败，请手动复制','error'); }); }
-        clearCode(){ if(confirm('确定要��空代码吗？')){ this.editor.setValue(''); StorageManager.saveCode(''); Notification.show('🗑️ 代码已清空','info'); } }
+        shareCode(){
+            const code=this.editor.getValue();
+            // collect settings
+            let theme = (StorageManager.getTheme && StorageManager.getTheme()) || (document.body.classList.contains('dark-mode')?'dark':'light');
+            try{ const EO=this.monaco.editor.EditorOption; }catch{}
+            const EO=this.monaco?.editor?.EditorOption;
+            const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint;
+            const def=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop;
+            const efs = EO? Math.round(this.editor?.editor?.getOption(EO.fontSize) || def) : def;
+            const ofs = Math.round(parseFloat(getComputedStyle(document.getElementById('output')).fontSize)||15);
+            const templateSelector=document.getElementById('template-selector');
+            const tpl = templateSelector ? (templateSelector.value||'') : '';
+            // Scroll positions at share time
+            let est=0, esl=0, ost=0;
+            try{ est = Math.round(this.editor?.editor?.getScrollTop()||0); esl = Math.round(this.editor?.editor?.getScrollLeft()||0); }catch{}
+            try{ const out=document.getElementById('output'); ost = Math.round(out.scrollTop||0); }catch{}
+            const payloadObj = { v:2, c: code, efs, ofs, th: theme, tpl: tpl||undefined, est, esl, ost };
+            const shareUrl = buildShortPermalink(payloadObj);
+            navigator.clipboard.writeText(shareUrl).then(()=>{
+                const modal=document.getElementById('share-modal');
+                const input=document.getElementById('share-url');
+                input.value=shareUrl;
+                const openBtn=document.getElementById('open-share-url-button');
+                if(openBtn){ openBtn.onclick=()=>{ const url=input.value||shareUrl; window.open(url,'_blank'); } }
+                modal.classList.add('active');
+                Notification.show('✅ 分享链接已复制到剪贴板','success');
+            }).catch(()=>{ Notification.show('❌ 复制失败，请手动复制','error'); });
+        }
+        clearCode(){ if(confirm('确定要清空代码吗？')){ this.editor.setValue(''); StorageManager.saveCode(''); Notification.show('🗑️ 代码已清空','info'); } }
         clearOutput(){ document.getElementById('output').textContent='清空完成'; document.getElementById('exec-time').textContent='就绪'; Notification.show('🗑️ 输出已清空','info'); }
     }
 
@@ -737,8 +1206,44 @@
             document.body.classList.remove('dark-mode');
         }
 
-        const urlParams=new URLSearchParams(window.location.search); let codeLoadedFromUrl=false; if(urlParams.has('template')){ const k=urlParams.get('template'); if(typeof codeTemplates!=='undefined' && codeTemplates[k]){ StorageManager.saveCode(codeTemplates[k]); codeLoadedFromUrl=true; } }
-        if(!codeLoadedFromUrl && urlParams.has('code')){ try{ const decoded=decodeURIComponent(escape(atob(urlParams.get('code')))); StorageManager.saveCode(decoded); codeLoadedFromUrl=true; }catch(e){ console.warn('Failed to decode shared code:',e);} }
+        const urlParams=new URLSearchParams(window.location.search); let codeLoadedFromUrl=false;
+        // New: decode from /s/<payload> path
+        try{
+            const p = window.location.pathname;
+            const idx = p.indexOf('/s/');
+            if(idx !== -1){
+                let pay = p.substring(idx + 3);
+                // strip any trailing slash
+                if(pay.endsWith('/')) pay = pay.slice(0,-1);
+                let decodedJson = null;
+                try { decodedJson = window.LZString.decompressFromEncodedURIComponent(pay); } catch{}
+                if(decodedJson){
+                    const obj = JSON.parse(decodedJson);
+                    if(obj && typeof obj.c==='string'){ StorageManager.saveCode(obj.c); codeLoadedFromUrl=true; }
+                    if(obj && obj.efs && Number.isFinite(obj.efs)){ StorageManager.setEditorFontSize(Math.round(obj.efs)); }
+                    if(obj && obj.ofs && Number.isFinite(obj.ofs)){ StorageManager.setOutputFontSize(Math.round(obj.ofs)); try{ const out=document.getElementById('output'); if(out) out.style.fontSize=`${Math.round(obj.ofs)}px`; }catch{} }
+                    if(obj && obj.th && (obj.th==='dark'||obj.th==='light')){ try{ StorageManager.setTheme(obj.th);}catch{} }
+                    // Defer scroll/template to after editor init
+                    window.__pendingPermalink = { est: obj.est, esl: obj.esl, ost: obj.ost, tpl: obj.tpl };
+                }
+            }
+        }catch(e){ console.warn('Failed to parse /s/ payload:',e); }
+        // New: permalink compressed param 'z'
+        if(!codeLoadedFromUrl && urlParams.has('z')){
+            try{
+                const z=urlParams.get('z');
+                const jsonStr = window.LZString && window.LZString.decompressFromEncodedURIComponent ? window.LZString.decompressFromEncodedURIComponent(z) : null;
+                if(jsonStr){
+                    const obj=JSON.parse(jsonStr);
+                    if(obj && typeof obj.c==='string'){ StorageManager.saveCode(obj.c); codeLoadedFromUrl=true; }
+                    if(obj && obj.efs && Number.isFinite(obj.efs)){ StorageManager.setEditorFontSize(Math.round(obj.efs)); }
+                    if(obj && obj.ofs && Number.isFinite(obj.ofs)){ StorageManager.setOutputFontSize(Math.round(obj.ofs)); try{ const out=document.getElementById('output'); if(out) out.style.fontSize=`${Math.round(obj.ofs)}px`; }catch{} }
+                    if(obj && obj.th && (obj.th==='dark'||obj.th==='light')){ try{ StorageManager.setTheme(obj.th);}catch{} }
+                }
+            }catch(e){ console.warn('Failed to parse z param:',e); }
+        }
+        // Legacy: base64 code param
+        if(!codeLoadedFromUrl && urlParams.has('code')){ try{ let raw=urlParams.get('code')||''; let b64; try{ b64=decodeURIComponent(raw); }catch{ b64=raw; } b64=b64.replace(/-/g,'+').replace(/_/g,'/'); while(b64.length%4) b64+='='; const bytes=atob(b64); const decoded=decodeURIComponent(escape(bytes)); StorageManager.saveCode(decoded); codeLoadedFromUrl=true; }catch(e){ console.warn('Failed to decode shared code:',e);} }
         // 以 SRI + 回退方式加载 LXGW 字体样式，失败时提示并回退到其他 CDN 或去除 SRI
         (function loadLXGWCss(){
             const primary = {
