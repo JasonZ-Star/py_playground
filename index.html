@@ -658,11 +658,23 @@
     // Helper: build short permalink /s/<payload> from current location
     function buildShortPermalink(state){
         try{
-            const base = new URL('./s/', window.location.href);
             const payload = window.LZString.compressToEncodedURIComponent(JSON.stringify(state));
-            return base.toString() + payload;
+            if (!payload || payload.length < 2) {
+                const legacy=btoa(unescape(encodeURIComponent(state && state.c ? state.c : '')));
+                const u = new URL(window.location.href);
+                u.search = '';
+                u.hash = '';
+                return `${u.origin}${u.pathname.replace(/index\.html$/, '')}?code=${encodeURIComponent(legacy)}`;
+            }
+            const baseDir = new URL('./', window.location.href);
+            // Prefer /s/<payload> whenever current page is controlled by SW (works for local and prod)
+            const hasSWController = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
+            if (hasSWController) {
+                return new URL('./s/' + payload, baseDir).toString();
+            }
+            // Fallback works everywhere (including first-visit or environments without SW support)
+            return new URL('./share.html?p=' + encodeURIComponent(payload), baseDir).toString();
         }catch(e){
-            // Fallback: legacy ?code=
             try{
                 const legacy=btoa(unescape(encodeURIComponent(state && state.c ? state.c : '')));
                 const u = new URL(window.location.href);
@@ -671,6 +683,25 @@
                 return `${u.origin}${u.pathname.replace(/index\.html$/, '')}?code=${encodeURIComponent(legacy)}`;
             }catch{ return window.location.href; }
         }
+    }
+    // Ensure shortlink has valid z payload; otherwise fallback to legacy ?code=
+    function ensureValidShortUrl(url, state){
+        try{
+            if(!url) throw new Error('empty');
+            const u = new URL(url, window.location.href);
+            const z = u.searchParams.get('z');
+            // allow /s/<payload> and share.html?p= as valid forms
+            if((u.pathname.includes('/s/') && u.pathname.split('/s/')[1]) || (u.pathname.endsWith('share.html') && u.searchParams.get('p'))) return u.toString();
+            if(z && z.trim().length > 0) return u.toString();
+        }catch{}
+        // fallback legacy
+        try{
+            const legacy=btoa(unescape(encodeURIComponent(state && state.c ? state.c : '')));
+            const u2 = new URL(window.location.href);
+            u2.search = '';
+            u2.hash = '';
+            return `${u2.origin}${u2.pathname.replace(/index\.html$/, '')}?code=${encodeURIComponent(legacy)}`;
+        }catch{ return window.location.href; }
     }
 
     const CONFIG = { EDITOR:{ fontSize:{desktop:18,mobile:16}, lineHeight:{desktop:28,mobile:24}, debounceMs:1000, font:"'JetBrains Mono', 'LXGW WenKai Screen', monospace", lineHeightFactor: 1.7 }, PACKAGES:{ skipStubs:['numpy'], debounceMs:1500, slowLibraries:['pandas','numpy','scipy','sklearn','tensorflow','torch','cv2','PIL'] }, COMPLETION:{ triggerChars:['.'], cacheExpireMs:1000, requestTimeoutMs:10000, maxSuggestions:30, warmupTimeoutMs:8000 }, RUNTIME:{ executionTimeoutMs:30000, mobileBreakpoint:768 }, FORBIDDEN_MODULES:['subprocess','os.system','__import__','eval','exec'] };
@@ -1050,26 +1081,27 @@
             if(copyShortBtn){
                 copyShortBtn.addEventListener('click',()=>{
                     try{
-                        const tplSel = document.getElementById('template-selector');
-                        const tpl = tplSel ? (tplSel.value||'') : '';
+                        const code=this.editor.getValue();
+                        // collect settings
+                        let theme = (StorageManager.getTheme && StorageManager.getTheme()) || (document.body.classList.contains('dark-mode')?'dark':'light');
+                        try{ const EO=this.monaco.editor.EditorOption; }catch{}
                         const EO=this.monaco?.editor?.EditorOption;
                         const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint;
                         const def=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop;
                         const efs = EO? Math.round(this.editor?.editor?.getOption(EO.fontSize) || def) : def;
-                        const outEl=document.getElementById('output');
-                        const ofs = Math.round(parseFloat(getComputedStyle(outEl).fontSize)||15);
-                        // Scroll positions
+                        const ofs = Math.round(parseFloat(getComputedStyle(document.getElementById('output')).fontSize)||15);
+                        const templateSelector=document.getElementById('template-selector');
+                        const tpl = templateSelector ? (templateSelector.value||'') : '';
+                        // Scroll positions at share time
                         let est=0, esl=0, ost=0;
                         try{ est = Math.round(this.editor?.editor?.getScrollTop()||0); esl = Math.round(this.editor?.editor?.getScrollLeft()||0); }catch{}
-                        try{ ost = Math.round(outEl.scrollTop||0); }catch{}
-                        const theme=(StorageManager.getTheme&&StorageManager.getTheme())||(document.body.classList.contains('dark-mode')?'dark':'light');
-                        const code=this.editor.getValue();
-                        const state={ v:2, c:code, efs, ofs, th:theme, tpl: tpl||undefined, est, esl, ost };
-                        const url=buildShortPermalink(state);
+                        try{ const out=document.getElementById('output'); ost = Math.round(out.scrollTop||0); }catch{}
+                        const payloadObj = { v:2, c: code, efs, ofs, th: theme, tpl: tpl||undefined, est, esl, ost };
+                        let url=buildShortPermalink(payloadObj);
+                        url=ensureValidShortUrl(url, payloadObj);
                         navigator.clipboard.writeText(url).then(()=>{
                             Notification.show('✅ 短链已复制到剪贴板','success');
                         }).catch(()=>{
-                            // 回退：在通知里显示，便于手动复制
                             try{ Notification.show(url,'info',4000);}catch{}
                         });
                     }catch(e){ Notification.show('❌ 复制短链失败','error'); }
@@ -1183,7 +1215,8 @@
             try{ est = Math.round(this.editor?.editor?.getScrollTop()||0); esl = Math.round(this.editor?.editor?.getScrollLeft()||0); }catch{}
             try{ const out=document.getElementById('output'); ost = Math.round(out.scrollTop||0); }catch{}
             const payloadObj = { v:2, c: code, efs, ofs, th: theme, tpl: tpl||undefined, est, esl, ost };
-            const shareUrl = buildShortPermalink(payloadObj);
+            let shareUrl = buildShortPermalink(payloadObj);
+            shareUrl = ensureValidShortUrl(shareUrl, payloadObj);
             navigator.clipboard.writeText(shareUrl).then(()=>{
                 const modal=document.getElementById('share-modal');
                 const input=document.getElementById('share-url');

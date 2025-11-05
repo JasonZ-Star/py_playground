@@ -18,16 +18,14 @@
       try{
         var loc = window.location;
         var path = loc.pathname || '';
-        // Try to extract /s/<payload>
+        // Route /s/<payload> to share.html (link builder)
         var idx = path.indexOf('/s/');
         if(idx !== -1){
           var payload = path.substring(idx + 3);
           if(payload.endsWith('/')) payload = payload.slice(0,-1);
-          if(payload){
-            var target = loc.origin + '/' + '?z=' + payload; // redirect to index with query
-            window.location.replace(target);
-            return;
-          }
+          var target = loc.origin + '/share.html' + (payload ? ('#' + payload) : '');
+          window.location.replace(target);
+          return;
         }
         // Otherwise, go home preserving query if present
         var home = loc.origin + '/' + (loc.search || '');

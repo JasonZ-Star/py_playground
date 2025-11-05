@@ -7,7 +7,8 @@ const CORE_ASSETS = [
     './index.html',
     './templates.js',
     './py-worker.js',
-    './fonts/local-fonts.css'
+    './fonts/local-fonts.css',
+    './share.html'
 ];
 
 self.addEventListener('install', (event) => {
@@ -56,6 +57,26 @@ self.addEventListener('fetch', (event) => {
     // NEW: do not intercept cross-origin requests at all (avoid affecting CDN requests)
     if (url.origin !== self.location.origin) {
         return; // let browser handle normally
+    }
+
+    // Route /s/* to share.html for link reconstruction
+    if (url.pathname.includes('/s/')) {
+        event.respondWith((async () => {
+            try {
+                const cache = await caches.open(CURRENT_CACHE);
+                const cached = await cache.match('./share.html') || await caches.match('./share.html');
+                if (cached) return cached;
+                const res = await fetch('./share.html');
+                if (res && res.ok) {
+                    try { await cache.put('./share.html', res.clone()); } catch {}
+                }
+                return res;
+            } catch (e) {
+                // Last resort: basic inline response
+                return new Response('<meta charset="utf-8"><p>Open <code>share.html</code> failed. Please refresh.</p>', { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+            }
+        })());
+        return;
     }
 
     // Always bypass cache for worker script to avoid stale worker
