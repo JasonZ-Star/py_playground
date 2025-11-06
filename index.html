@@ -210,6 +210,8 @@
         #preview-editor-container { /* height will be set dynamically */ border: 1px solid var(--panel-border); border-radius:6px; overflow: hidden; background: var(--panel-bg); }
         /* Code editor styles for preview */
         .monaco-editor { font-family: 'JetBrains Mono', 'LXGW WenKai Screen', monospace; font-size: 17px; line-height: 1.7; }
+        .preview-controls { display:flex; align-items:center; gap:8px; margin: 6px 0; }
+        .preview-controls .muted { color: var(--muted); font-size: 12px; }
     </style>
 </head>
 <body class="loading">
@@ -300,7 +302,7 @@
                 <span id="editor-font-value" style="width:60px;text-align:right;">18px</span>
             </div>
             <div style="display:flex;align-items:center;gap:10px;">
-                <label for="output-font-slider" style="min-width:90px;">输出区字号</label>
+                <label for="output-font-slider" style="min-width:90px;">输出区域字号</label>
                 <input type="range" id="output-font-slider" min="10" max="28" step="1" style="flex:1;">
                 <span id="output-font-value" style="width:60px;text-align:right;">15px</span>
             </div>
@@ -324,7 +326,11 @@
             </div>
             <div id="data-file-list" class="file-list" aria-live="polite">正在加载…</div>
             <div style="margin-top:12px;">
-                <label for="preview-area" style="font-weight:600;">预览</label>
+                <label for="preview-editor-container" style="font-weight:600;">预览</label>
+                <div class="preview-controls">
+                    <button class="tiny-button" id="csv-toggle-view" style="display:none">显示原文</button>
+                    <span id="csv-stats" class="muted"></span>
+                </div>
                 <div id="preview-editor-container" aria-label="预览编辑器"></div>
             </div>
         </div>
@@ -976,7 +982,9 @@
             this.completionProvider=new CompletionProvider(this.workerClient,this.monaco);
             await this.completionProvider.initialize();
             this.completionProvider.register(this.editor.editor);
-            // Idle warmup after managers exist
+            // Populate template selector options
+            try { this.setupTemplateSelector(document.getElementById('template-selector')); } catch {}
+             // Idle warmup after managers exist
             const idle= window.requestIdleCallback || function(cb){ setTimeout(()=>cb({didTimeout:false,timeRemaining:()=>50}),800)};
             idle(async()=>{ try{ const code=this.editor.getValue(); const pkgs=await this.packageManager.findNewPackages(code); if(pkgs.size>0) await this.packageManager.installPackages(pkgs,true); }catch(e){ console.warn('Idle warmup failed:',e);} });
             this.setupEventListeners();
@@ -1051,346 +1059,299 @@
             const uploadDataFromModalBtn=document.getElementById('upload-data-from-modal');
             const openDataManagerBtn=document.getElementById('open-data-manager');
             const uploadInput=document.getElementById('upload-data-input');
+            const csvToggleBtn = document.getElementById('csv-toggle-view');
+            const csvStatsEl = document.getElementById('csv-stats');
+            let csvViewMode = 'table'; // 'table' | 'raw'
+            let lastPreviewPath = '';
+            let lastPreviewText = '';
 
-            // Preview helpers: create a Monaco read-only editor and update with lightweight rendering
-            let previewAutoSizer = null;
+            // Wire primary action buttons
+            if (runButton) runButton.addEventListener('click', ()=> this.runCode());
+            if (stopButton) stopButton.addEventListener('click', ()=> this.stop());
+            if (clearCodeButton) clearCodeButton.addEventListener('click', ()=> this.clearCode());
+            if (clearOutputButton) clearOutputButton.addEventListener('click', ()=> this.clearOutput());
+            if (formatButton) formatButton.addEventListener('click', ()=> this.formatCode());
+            if (shareButton) shareButton.addEventListener('click', ()=> this.shareCode());
+            if (downloadCodeButton) downloadCodeButton.addEventListener('click', ()=> this.downloadCode());
+            if (copyOutputButton) copyOutputButton.addEventListener('click', ()=> this.copyOutput());
+            if (jumpError) jumpError.addEventListener('click', ()=>{ if(typeof this.lastErrorLine==='number' && this.editor?.editor){ try{ this.editor.editor.revealLineInCenter(this.lastErrorLine); this.editor.editor.setPosition({ lineNumber:this.lastErrorLine, column:1 }); this.editor.editor.focus(); }catch{} } });
+
+            // Dark mode toggle
+            const darkBtn = document.getElementById('dark-mode-button');
+            if (darkBtn) darkBtn.addEventListener('click', ()=>{
+                const isDark = document.body.classList.toggle('dark-mode');
+                document.documentElement.classList.toggle('dark-mode', isDark);
+                try { this.monaco && this.monaco.editor.setTheme(isDark? 'vs-dark':'vs'); } catch {}
+                try { StorageManager.setTheme(isDark? 'dark':'light'); } catch {}
+            });
+
+            // Help modal
+            const helpBtn = document.getElementById('help-button');
+            const helpModal = document.getElementById('help-modal');
+            if (helpBtn && helpModal) helpBtn.addEventListener('click', ()=> helpModal.classList.add('active'));
+
+            // Settings modal & controls
+            if (settingsBtn && settingsModal) settingsBtn.addEventListener('click', ()=> settingsModal.classList.add('active'));
+            if (closeSettingsBtn && settingsModal) closeSettingsBtn.addEventListener('click', ()=> settingsModal.classList.remove('active'));
+            if (copyShortBtn) copyShortBtn.addEventListener('click', ()=> this.shareCode());
+            if (editorSlider && editorValue) {
+                const applyEditorFs = (v)=>{ const n = Math.round(Number(v)||0); if(!n) return; this.editor && this.editor.setFontSize(n); editorValue.textContent = `${n}px`; };
+                editorSlider.addEventListener('input', ()=> applyEditorFs(editorSlider.value));
+                // init shown value
+                try { const EO=this.monaco?.editor?.EditorOption; const val = EO? Math.round(this.editor?.editor?.getOption(EO.fontSize)) : null; editorValue.textContent = `${val||Math.round(StorageManager.getEditorFontSize()||CONFIG.EDITOR.fontSize.desktop)}px`; } catch {}
+            }
+            if (outputSlider && outputValue) {
+                const outputEl = document.getElementById('output');
+                const applyOutFs = (v)=>{ const n = Math.round(Number(v)||0); if(!n||!outputEl) return; outputEl.style.fontSize = `${n}px`; try{ StorageManager.setOutputFontSize(n);}catch{} outputValue.textContent = `${n}px`; };
+                outputSlider.addEventListener('input', ()=> applyOutFs(outputSlider.value));
+                try { const saved = StorageManager.getOutputFontSize(); outputValue.textContent = `${Math.round(saved||15)}px`; if(saved && outputEl) outputEl.style.fontSize = `${Math.round(saved)}px`; } catch {}
+            }
+            if (resetFontsBtn) resetFontsBtn.addEventListener('click', ()=>{
+                try{
+                    const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint;
+                    const efs = isMobile? CONFIG.EDITOR.fontSize.mobile : CONFIG.EDITOR.fontSize.desktop;
+                    this.editor && this.editor.setFontSize(efs);
+                    if (editorSlider) editorSlider.value = String(efs);
+                    if (editorValue) editorValue.textContent = `${efs}px`;
+                    const outDefault = 15;
+                    const outputEl = document.getElementById('output');
+                    if (outputEl) outputEl.style.fontSize = `${outDefault}px`;
+                    if (outputSlider) outputSlider.value = String(outDefault);
+                    if (outputValue) outputValue.textContent = `${outDefault}px`;
+                    StorageManager.setOutputFontSize(outDefault);
+                }catch{}
+            });
+
+            // Keyboard shortcut: Ctrl/Cmd+Enter to run
+            window.addEventListener('keydown', (e)=>{
+                const meta = e.ctrlKey || e.metaKey;
+                if (meta && e.key === 'Enter') { e.preventDefault(); this.runCode(); }
+            });
+
+             // Helpers
+             const hexDump = (uint8, max=256) => {
+                try{
+                    if(!uint8) return '';
+                    const arr = (uint8.constructor === Uint8Array) ? uint8 : new Uint8Array(uint8);
+                    const len = Math.min(arr.length, max);
+                    let out='';
+                    for(let i=0;i<len;i+=16){
+                        const slice = arr.subarray(i, Math.min(i+16,len));
+                        const hex = Array.from(slice).map(b=>b.toString(16).padStart(2,'0')).join(' ');
+                        const ascii = Array.from(slice).map(b=> (b>=32 && b<127)? String.fromCharCode(b):'.').join('');
+                        out += i.toString(16).padStart(8,'0') + '  ' + hex.padEnd(16*3-1,' ') + '  ' + ascii + '\n';
+                    }
+                    return out;
+                }catch{ return ''; }
+            };
+            const csvStats = (text, delim=',') => {
+                const lines = text.split(/\r?\n/).slice(0, 201).filter(l=>l.length>0);
+                let colCount = 0; let nulls = 0;
+                for(const l of lines){
+                    const cols = l.split(delim);
+                    colCount = Math.max(colCount, cols.length);
+                    for(const c of cols){ if(c==='' || /^\s*$/.test(c) || /^(na|nan|null)$/i.test(c)) nulls++; }
+                }
+                return { rowCount: Math.max(0, lines.length), colCount, nulls };
+            };
+            const renderCSV = (text, delim=',') => {
+                const lines = text.split(/\r?\n/).slice(0, 201);
+                if(!lines.length) return '';
+                const rows = lines.map(l=> l.split(delim));
+                const cols = rows.reduce((m,r)=> Math.max(m, r.length), 0);
+                const widths = new Array(cols).fill(0);
+                for(const r of rows){ for(let i=0;i<cols;i++){ const v = String(r[i] ?? ''); const w = Math.min(v.length, 80); if(w>widths[i]) widths[i]=w; } }
+                const fmtRow = (r)=> r.map((v,i)=> String(v??'').padEnd(widths[i],' ')).join(' | ');
+                let out='';
+                if(rows.length){ out += fmtRow(rows[0]) + '\n'; out += widths.map(w=>'-'.repeat(Math.min(w,50))).join('-+-') + '\n'; }
+                for(let i=1;i<rows.length;i++){ out += fmtRow(rows[i]) + '\n'; }
+                return out;
+            };
             const layoutPreview = ()=>{
                 try{
-                    if(!this.previewEditor) return; const ed=this.previewEditor; const wrap=document.getElementById('preview-editor-container'); if(!wrap) return;
-                    const minH=120; const maxH=Math.max(240, Math.floor(window.innerHeight*0.55));
-                    let contentH=0;
-                    try{ contentH = (typeof ed.getContentHeight==='function') ? ed.getContentHeight() : 0; }catch{}
-                    if(!contentH){
-                        try{ const EO=this.monaco.editor.EditorOption; const lh = ed.getOption(EO.lineHeight)||20; const lc = ed.getModel()? ed.getModel().getLineCount(): 6; contentH = lh * lc + 8; }catch{ contentH = 200; }
-                    }
-                    const h = Math.max(minH, Math.min(maxH, Math.floor(contentH)));
-                    if(wrap.style.height !== h+'px'){ wrap.style.height = h+'px'; ed.layout(); }
+                    const ed = ensurePreviewEditor(); if(!ed) return;
+                    const lc = Math.max(3, Math.min(40, ed.getModel().getLineCount()));
+                    // Approximate height from editor API
+                    const px = Math.round(ed.getTopForLineNumber(lc+1) + 10);
+                    const h = Math.max(140, Math.min(520, px));
+                    const container = document.getElementById('preview-editor-container');
+                    container.style.height = h + 'px';
+                    ed.layout();
                 }catch{}
             };
-            const ensurePreviewEditor = () => {
-                try{
-                    if(this.previewEditor && !this.previewEditor.isDisposed?.()) return this.previewEditor;
-                    const wrap=document.getElementById('preview-editor-container');
-                    if(!wrap || !this.monaco) return null;
-                    const baseFs = (()=>{ try{ const EO=this.monaco.editor.EditorOption; return Math.round(this.editor?.editor?.getOption(EO.fontSize)||16); }catch{ return 16; } })();
-                    this.previewEditor = this.monaco.editor.create(wrap, {
-                        value: '',
-                        language: 'plaintext',
-                        readOnly: true,
-                        theme: document.body.classList.contains('dark-mode') ? 'vs-dark' : 'vs',
-                        automaticLayout: true,
-                        fontFamily: CONFIG.EDITOR.font,
-                        fontSize: baseFs,
-                        minimap: { enabled:false },
-                        wordWrap: 'on',
-                        scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 }
-                    });
-                    try{
-                        // Re-layout when content size changes
-                        this.previewEditor.onDidContentSizeChange(()=> layoutPreview());
-                        // Initial small height; will expand on first content
-                        layoutPreview();
-                    }catch{}
-                    return this.previewEditor;
-                }catch{ return null; }
-            };
-            const renderCSV = (raw, delim=',', maxRows=50, maxCols=50) => {
-                const lines = String(raw||'').split(/\r?\n/).slice(0, maxRows);
-                const rows = lines.map(l=> l.split(delim).slice(0, maxCols).map(c=>c.trim()));
-                if(rows.length===0) return '';
-                const colCount = Math.min(maxCols, Math.max(...rows.map(r=>r.length))||0);
-                const widths = Array.from({length: colCount}, (_,i)=> Math.min(40, Math.max(3, ...rows.map(r=> (r[i]||'').length))));
-                const pad = (s,w)=>{
-                    s = (s||'').slice(0, w);
-                    const padLen = Math.max(0, w - s.length);
-                    return s + ' '.repeat(padLen);
-                };
-                const linesOut = rows.map(r=> ' ' + Array.from({length: colCount}, (_,i)=> pad(r[i]||'', widths[i])).join(' | ') + ' ');
-                return linesOut.join('\n');
-            };
-            const updatePreview = (text, path='')=>{
-                const ed = ensurePreviewEditor(); if(!ed){ try{ Notification.show('预览区域不可用','error'); }catch{} return; }
-                const p=String(path||'').toLowerCase();
-                let content = String(text==null? '': text);
-                // Lightweight renderers
-                if(p.endsWith('.json')){
-                    try{ const obj = JSON.parse(content); content = JSON.stringify(obj, null, 2); }catch{}
-                } else if(p.endsWith('.csv')){
-                    content = renderCSV(content, ',');
-                } else if(p.endsWith('.tsv')){
-                    content = renderCSV(content, '\t');
+
+             // Preview helpers: create a Monaco read-only editor and update with lightweight rendering
+             const ensurePreviewEditor = () => {
+                 const container = document.getElementById('preview-editor-container');
+                 if (!container) return null;
+                 // Reuse existing editor if available
+                if (container.editor) { container.editor.updateOptions({ readOnly: true }); return container.editor; }
+                 // Create new editor
+                 const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint;
+                 const defaultFont=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop;
+                 const savedFont=StorageManager.getEditorFontSize();
+                 const baseFont = (savedFont && Number.isFinite(savedFont)) ? savedFont : defaultFont;
+                 const baseLine = Math.max(12, Math.round(baseFont * (CONFIG.EDITOR.lineHeightFactor||1.7)));
+                 const editor = this.monaco.editor.create(container, {
+                     value: '',
+                     language: 'python',
+                     theme: document.body.classList.contains('dark-mode') ? 'vs-dark' : 'vs',
+                     automaticLayout: true,
+                     fontFamily: CONFIG.EDITOR.font,
+                     fontSize: baseFont,
+                     lineHeight: baseLine,
+                     minimap: { enabled: false },
+                     wordWrap: 'on',
+                     scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
+                     readOnly: true, // Read-only for preview
+                     quickSuggestions: { other: true, comments: true, strings: true },
+                     suggestOnTriggerCharacters: true,
+                     tabSize: 4,
+                     insertSpaces: true,
+                     mouseWheelZoom: true
+                 });
+                 container.editor = editor;
+                 this.previewEditor = editor;
+                 return editor;
+             };
+            const updatePreview = (text, path='') => {
+                const ed = ensurePreviewEditor(); if(!ed) return;
+                const p = String(path||'').toLowerCase();
+                let content = String(text==null? '' : text);
+                lastPreviewPath = path;
+                lastPreviewText = content;
+                // CSV/TSV: render monospaced table in editor when in 'table' mode
+                if (/\.(csv|tsv)$/.test(p)){
+                    const delim = p.endsWith('.tsv') ? '\t' : ',';
+                    const stats = csvStats(content, delim);
+                    if (csvStatsEl) csvStatsEl.textContent = `预览行数: ${stats.rowCount} 列数: ${stats.colCount} 空值(预览): ${stats.nulls}`;
+                    if (csvToggleBtn) { csvToggleBtn.style.display = 'inline-block'; csvToggleBtn.textContent = (csvViewMode==='table')? '显示原文' : '显示表格'; }
+                    if (csvViewMode==='table') content = renderCSV(content, delim);
+                } else {
+                    if (csvStatsEl) {
+                        // lightweight stats for md/yaml/html
+                        if (/\.(md|markdown)$/.test(p)){
+                            try{ const heads = content.split(/\r?\n/).filter(l=>/^\s*#+\s+/.test(l)).slice(0,8).map(l=>l.replace(/^\s*(#+)\s+/, (m,hs)=> (hs.length>1?('H'+hs.length):'H1')+': ')); csvStatsEl.textContent = heads.length? `标题 ${heads.length} 个 · ${heads.join(' | ')}` : 'Markdown 文档'; }catch{ csvStatsEl.textContent='Markdown 文档'; }
+                        } else if (/\.(ya?ml)$/.test(p)){
+                            try{ const keys = Array.from(content.matchAll(/^([A-Za-z0-9_-]+):\s*/gm)).map(m=>m[1]).slice(0,12); const u=Array.from(new Set(keys)); csvStatsEl.textContent = u.length? `顶层键 ${u.length} 个 · ${u.join(', ')}` : 'YAML 文档'; }catch{ csvStatsEl.textContent='YAML 文档'; }
+                        } else if (/\.(html?)$/.test(p)){
+                            try{ const m = content.match(/<title[^>]*>([\s\S]*?)<\/title>/i); const title=(m?m[1].replace(/\s+/g,' ').trim():''); const hCount=(content.match(/<h[1-6][^>]*>/gi)||[]).length; csvStatsEl.textContent = `HTML${title?` · 标题: ${title}`:''} · 头部标签: ${hCount}`; }catch{ csvStatsEl.textContent='HTML 文档'; }
+                        } else {
+                            csvStatsEl.textContent='';
+                        }
+                    }
+                    if (csvToggleBtn) csvToggleBtn.style.display='none';
                 }
-                if(content.length>200000) content = content.slice(0,200000);
                 // Language hint
                 let lang='plaintext';
-                if(p.endsWith('.json')) lang='json';
-                else if(p.endsWith('.py')) lang='python';
-                else if(p.endsWith('.csv')||p.endsWith('.tsv')) lang='plaintext';
-                try{ this.monaco.editor.setModelLanguage(ed.getModel(), lang); }catch{}
-                try{ ed.setValue(content); ed.setScrollTop(0); }catch{}
+                if (p.endsWith('.json')) lang='json';
+                else if (p.endsWith('.py')) lang='python';
+                else if (p.endsWith('.md')||p.endsWith('.markdown')) lang='markdown';
+                else if (p.endsWith('.html')||p.endsWith('.htm')) lang='html';
+                else if (p.endsWith('.yaml')||p.endsWith('.yml')) lang='yaml';
+                else if (p.endsWith('.csv')||p.endsWith('.tsv')) lang='plaintext';
+                try { this.monaco.editor.setModelLanguage(ed.getModel(), lang); } catch {}
+                try { ed.setValue(content); ed.setScrollTop(0); } catch {}
                 layoutPreview();
             };
 
-            const makeReadSnippet = (path) => {
-                const p = String(path||'');
-                const lower = p.toLowerCase();
-                if(lower.endsWith('.csv')){
-                    return `import pandas as pd\n\n# 读取 CSV\ndf = pd.read_csv('${p}')\nprint(df.head())`;
-                }
-                if(lower.endsWith('.tsv')){
-                    return `import pandas as pd\n\n# 读取 TSV\ndf = pd.read_csv('${p}', sep='\t')\nprint(df.head())`;
-                }
-                if(lower.endsWith('.json')){
-                    return `import pandas as pd\n\n# 读取 JSON\ndf = pd.read_json('${p}')\nprint(df.head())`;
-                }
-                if(lower.endsWith('.xlsx') || lower.endsWith('.xls')){
-                    return `import pandas as pd\n\n# 读取 Excel\ndf = pd.read_excel('${p}')\nprint(df.head())`;
-                }
-                if(lower.endsWith('.txt')){
-                    return `# 读取文本\nwith open('${p}', 'r', encoding='utf-8') as f:\n    text = f.read()\nprint(text[:500])`;
-                }
-                return `# 通用读取（按需修改）\nwith open('${p}', 'rb') as f:\n    data = f.read()\nprint(len(data), 'bytes')`;
-            };
+            // Initial preview setup
+            const initialPath = '/data/boston_housing.csv';
+            const initialContent = `# 示例数据已挂载到 /data 目录\n# 首次加载可能稍慢，请耐心等待\n\nimport pandas as pd\ndf = pd.read_csv('${initialPath}')\nprint(df.head())`;
+            updatePreview(initialContent, initialPath);
 
-            runButton.addEventListener('click',()=>this.runCode());
-            stopButton.addEventListener('click',()=>this.stop());
-            clearCodeButton.addEventListener('click',()=>this.clearCode());
-            // removed early clearOutputButton listener (button now in output header)
-            formatButton.addEventListener('click',()=>this.formatCode());
-            shareButton.addEventListener('click',()=>this.shareCode());
-            importDataButton.addEventListener('click',()=>{
-                const input = document.getElementById('upload-data-input');
-                if(!input){ Notification.show('⚠️ 上传控件不可用','error'); return; }
-                try{ input.value=''; }catch{}
-                input.click();
-            });
-            downloadCodeButton.addEventListener('click',()=>{ this.downloadCode(); });
-            copyOutputButton.addEventListener('click',()=>{ this.copyOutput(); });
-            clearOutputButton.addEventListener('click',()=>this.clearOutput());
-            jumpError.addEventListener('click',()=>{ if(typeof this.lastErrorLine==='number' && this.editor?.editor){ this.editor.editor.revealLineInCenter(this.lastErrorLine); } });
-
-            const renderDataList = (container, items) => {
-                container.innerHTML = '';
-                if(!items || !items.length){
-                    container.innerHTML = '<div class="muted" style="text-align:center;">没有找到文件</div>';
-                    return;
-                }
-                items.forEach(file=>{
-                    const item = document.createElement('div');
-                    item.className = 'file-item';
-                    const badge = file.isDir ? '📁' : '📄';
-                    const delDisabled = !file.canDelete || file.isDir;
-                    const disabledAttr = file.isDir ? 'disabled' : '';
-                    const nameCls = file.isDir ? 'name' : 'name clickable';
-                    item.innerHTML = `
-                        <div class="${nameCls}" data-path="${file.path}" data-isdir="${file.isDir? '1':'0'}" title="${file.path}">${badge} ${file.name}</div>
-                        <div class="ops">
-                            <button class="tiny-button open-file" data-path="${file.path}" ${disabledAttr}>打开</button>
-                            <button class="tiny-button copy-path" data-path="${file.path}" ${disabledAttr}>复制路径</button>
-                            <button class="tiny-button copy-snippet" data-path="${file.path}" ${disabledAttr}>复制读取示例</button>
-                            <button class="tiny-button insert-snippet" data-path="${file.path}" ${disabledAttr}>插入读取示例</button>
-                            ${delDisabled? '' : `<button class="tiny-button delete-file" data-path="${file.path}">删除</button>`}
-                        </div>
-                    `;
-                    container.appendChild(item);
-                });
-                // Preview on name click
+            // Data file list rendering
+            const renderDataList = (container, items=[]) => {
+                if(!container){ return; }
+                if(!Array.isArray(items) || !items.length){ container.innerHTML = '<div class="muted" style="text-align:center; padding:8px;">（空）</div>'; return; }
+                const html = items.map(it => {
+                    const safeName = (it && it.name) ? String(it.name) : '';
+                    const path = (it && it.path) ? String(it.path) : '';
+                    const isDir = !!(it && it.isDir);
+                    const del = !!(it && it.canDelete && !isDir);
+                    const size = (it && typeof it.size==='number') ? it.size : 0;
+                    return `<div class="file-item" data-path="${path}" data-isdir="${isDir?1:0}">
+                        <span class="name ${isDir? '': 'clickable'}" data-path="${path}" data-isdir="${isDir?1:0}" title="${path}">${safeName}${isDir? ' /':''}</span>
+                        <span class="ops">
+                            ${isDir? '' : `<button class="tiny-button open-file" data-path="${path}">打开</button>`}
+                            ${del ? `<button class="tiny-button delete-file" data-path="${path}">删除</button>`: ''}
+                        </span>
+                    </div>`;
+                }).join('');
+                container.innerHTML = html;
+                // Bind preview on name click
                 container.querySelectorAll('.file-item .name.clickable').forEach(el=>{
                     el.addEventListener('click', async ()=>{
                         const path = el.getAttribute('data-path'); const isDir = el.getAttribute('data-isdir')==='1';
                         if(!path || isDir) return; updatePreview('加载中…');
-                        try{ const resp=await this.workerClient.request('read_text',{ path }); if(resp && resp.success){ const content = resp.content || resp.text || ''; updatePreview(content, path); } else { updatePreview('加载文件内容失败'); } }
-                        catch{ updatePreview('加载文件内容失败'); }
+                        try{
+                            const lower = String(path).toLowerCase();
+                            if(/\.parquet$/i.test(lower)){
+                                const r = await this.workerClient.request('read_bytes',{ path, maxBytes: 4096 });
+                                if(r && r.success){
+                                    const data = r.data && (r.data.constructor === Uint8Array ? r.data : new Uint8Array(r.data));
+                                    const magic = data && data.subarray ? new TextDecoder().decode(data.subarray(0,4)) : '';
+                                    let txt = `文件: ${path}\n大小: ${r.size||0} bytes\n`;
+                                    if(magic==='PAR1') txt += '类型: Apache Parquet (检测到 magic PAR1)\n'; else txt += `未知/非标准 Parquet (前4字节: ${magic||'N/A'})\n`;
+                                    txt += '\n十六进制预览:\n' + hexDump(data, 160);
+                                    updatePreview(txt, path);
+                                } else { updatePreview('加载文件内容失败'); }
+                            } else {
+                                const resp=await this.workerClient.request('read_text',{ path }); if(resp && resp.success){ const content = resp.content || resp.text || ''; updatePreview(content, path); } else { updatePreview('加载文件内容失败'); }
+                            }
+                        } catch { updatePreview('加载文件内容失败'); }
                     });
                 });
-                // Preview on button click
+                // Bind open button
                 container.querySelectorAll('.open-file').forEach(btn=>{
                     btn.addEventListener('click', async ()=>{
                         const path = btn.getAttribute('data-path'); if(!path) return;
                         updatePreview('加载中…');
-                        try{ const resp=await this.workerClient.request('read_text',{ path }); if(resp && resp.success){ const content = resp.content || resp.text || ''; updatePreview(content, path); } else { updatePreview('加载文件内容失败'); } }
-                        catch{ updatePreview('加载文件内容失败'); }
-                    });
-                });
-                container.querySelectorAll('.copy-path').forEach(btn=>{
-                    btn.addEventListener('click', async ()=>{
-                        const path = btn.getAttribute('data-path'); if(!path) return;
-                        try{ await navigator.clipboard.writeText(path); Notification.show('✅ 路径已复制: '+path,'success'); }catch{ Notification.show('❌ 复制路径失败','error'); }
-                    });
-                });
-                container.querySelectorAll('.copy-snippet').forEach(btn=>{
-                    btn.addEventListener('click', async ()=>{
-                        const path = btn.getAttribute('data-path'); if(!path) return; const snippet = makeReadSnippet(path);
-                        try{ await navigator.clipboard.writeText(snippet); Notification.show('✅ 读取示例已复制','success'); }catch{ Notification.show('❌ 复制失败','error'); }
-                    });
-                });
-                container.querySelectorAll('.insert-snippet').forEach(btn=>{
-                    btn.addEventListener('click', ()=>{
-                        const path = btn.getAttribute('data-path'); if(!path || !this.editor?.editor) return; const snippet = '\n' + makeReadSnippet(path) + '\n';
                         try{
-                            const ed = this.editor.editor;
-                            const pos = ed.getPosition();
-                            ed.executeEdits('insertSnippet',[{ range: new this.monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column), text: snippet }]);
-                            ed.focus();
-                            Notification.show('✅ 已插入读取示例','success');
-                        }catch{ Notification.show('❌ 插入失败','error'); }
+                            const lower = String(path).toLowerCase();
+                            if(/\.parquet$/i.test(lower)){
+                                const r = await this.workerClient.request('read_bytes',{ path, maxBytes: 4096 });
+                                if(r && r.success){
+                                    const data = r.data && (r.data.constructor === Uint8Array ? r.data : new Uint8Array(r.data));
+                                    const magic = data && data.subarray ? new TextDecoder().decode(data.subarray(0,4)) : '';
+                                    let txt = `文件: ${path}\n大小: ${r.size||0} bytes\n`;
+                                    if(magic==='PAR1') txt += '类型: Apache Parquet (检测到 magic PAR1)\n'; else txt += `未知/非标准 Parquet (前4字节: ${magic||'N/A'})\n`;
+                                    txt += '\n十六进制预览:\n' + hexDump(data, 160);
+                                    updatePreview(txt, path);
+                                } else { updatePreview('加载文件内容失败'); }
+                            } else {
+                                const resp=await this.workerClient.request('read_text',{ path }); if(resp && resp.success){ const content = resp.content || resp.text || ''; updatePreview(content, path); } else { updatePreview('加载文件内容失败'); }
+                            }
+                        } catch { updatePreview('加载文件内容失败'); }
                     });
                 });
+                // Bind delete button
                 container.querySelectorAll('.delete-file').forEach(btn=>{
                     btn.addEventListener('click', async ()=>{
                         const path = btn.getAttribute('data-path'); if(!path) return;
-                        if(!confirm('只允许删除你上传的文件，确定删除吗？')) return;
-                        try{
-                            const resp=await this.workerClient.request('delete_file',{ path });
-                            if(resp && resp.success){
-                                Notification.show('文件已删除','success');
-                                const listResp=await this.workerClient.request('list_dir',{ path:'/data' });
-                                renderDataList(document.getElementById('data-file-list'), (listResp && (listResp.files||listResp.items)) || []);
-                            } else {
-                                Notification.show(resp?.error||'删除文件失败','error');
-                            }
-                        }catch(err){ Notification.show('删除文件失败','error'); }
+                        if(!confirm(`确定删除 ${path} ？`)) return;
+                        try{ const r = await this.workerClient.request('delete_file',{ path }); if(!(r&&r.success)) throw new Error(r&&r.error||'删除失败'); Notification.show('🗑️ 已删除','success',1500);
+                            const listResp=await this.workerClient.request('list_dir',{ path:'/data' }); renderDataList(container, (listResp && (listResp.files||listResp.items)) || []);
+                        }catch(e){ Notification.show('❌ 删除失败：' + (e.message||e),'error'); }
                     });
                 });
             };
 
-            this.editor.onChange((code)=>{ this.packageManager.debounceInstall(code); });
-            if(typeof codeTemplates!=='undefined'){ this.setupTemplateSelector(templateSelector); }
-
-            // Keyboard shortcuts
-            document.addEventListener('keydown',(e)=>{
-                // Run and modal close
-                if((e.ctrlKey||e.metaKey)&&e.key==='Enter') this.runCode();
-                if(e.key==='Escape'){ document.querySelectorAll('.modal.active').forEach(m=>m.classList.remove('active')); }
-                // Zoom shortcuts: Ctrl + '+', Ctrl + '-', Ctrl + '0'
-                if(e.ctrlKey){
-                    const isPlus = e.key==='+' || e.key==='=' || e.code==='Equal' || e.code==='NumpadAdd';
-                    const isMinus= e.key==='-' || e.code==='Minus' || e.code==='NumpadSubtract';
-                    const isZero = e.key==='0' || e.code==='Digit0' || e.code==='Numpad0';
-                    if(isPlus||isMinus||isZero){
-                        e.preventDefault();
-                        const target = this.activeArea==='output' ? 'output' : 'editor';
-                        if(target==='editor'){
-                            try{
-                                const EO=this.monaco.editor.EditorOption;
-                                const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint;
-                                const def=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop;
-                                let cur=this.editor?.editor?.getOption(EO.fontSize) || def;
-                                cur=Math.round(cur);
-                                let next=cur;
-                                if(isPlus) next=Math.min(32, cur+1);
-                                else if(isMinus) next=Math.max(10, cur-1);
-                                else next=def; // reset
-                                this.editor.setFontSize(next);
-                            }catch{}
-                        }else{
-                            const out=document.getElementById('output');
-                            const cur=parseFloat(getComputedStyle(out).fontSize)||15;
-                            let next=Math.round(cur);
-                            if(isPlus) next=Math.min(28, next+1);
-                            else if(isMinus) next=Math.max(10, next-1);
-                            else next=15; // reset
-                            out.style.fontSize = `${next}px`;
-                            StorageManager.setOutputFontSize(next);
-                            ZoomHint.showOutput(next);
-                            try{ out.focus(); }catch{}
-                        }
-                    }
-                }
-            });
-
-            // Settings modal open + sliders
-            settingsBtn.addEventListener('click',()=>{
-                try{
-                    const EO=this.monaco.editor.EditorOption;
-                    const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint;
-                    const def=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop;
-                    const fs=Math.round(this.editor?.editor?.getOption(EO.fontSize) || def);
-                    editorSlider.value=String(fs);
-                    editorValue.textContent=`${fs}px`;
-                    const outEl=document.getElementById('output');
-                    const ofs=Math.round(parseFloat(getComputedStyle(outEl).fontSize)||15);
-                    outputSlider.value=String(ofs);
-                    outputValue.textContent=`${ofs}px`;
-                    settingsModal.classList.add('active');
-                }catch{ settingsModal.classList.add('active'); }
-            });
-            editorSlider.addEventListener('input',(ev)=>{
-                const fs=Math.round(Number(ev.target.value));
-                this.editor.setFontSize(fs);
-                editorValue.textContent=`${fs}px`;
-            });
-            outputSlider.addEventListener('input',(ev)=>{
-                const v=Math.round(Number(ev.target.value));
-                const outEl=document.getElementById('output');
-                outEl.style.fontSize=`${v}px`;
-                StorageManager.setOutputFontSize(v);
-                ZoomHint.showOutput(v);
-                outputValue.textContent=`${v}px`;
-            });
-            resetFontsBtn.addEventListener('click',()=>{
-                const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint;
-                const edDef=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop;
-                const outDef=17;
-                this.editor.setFontSize(edDef);
-                editorSlider.value=String(edDef);
-                editorValue.textContent=`${edDef}px`;
-                const outEl=document.getElementById('output');
-                outEl.style.fontSize=`${outDef}px`;
-                StorageManager.setOutputFontSize(outDef);
-                ZoomHint.showOutput(outDef);
-                outputSlider.value=String(outDef);
-                outputValue.textContent=`${outDef}px`;
-                Notification.show('🔁 已重置字号','info',1200);
-            });
-            closeSettingsBtn.addEventListener('click',()=> settingsModal.classList.remove('active'));
-            if(copyShortBtn){
-                copyShortBtn.addEventListener('click',()=>{
-                    try{
-                        const code=this.editor.getValue();
-                        // collect settings
-                        let theme = (StorageManager.getTheme && StorageManager.getTheme()) || (document.body.classList.contains('dark-mode')?'dark':'light');
-                        try{ const EO=this.monaco.editor.EditorOption; }catch{}
-                        const EO=this.monaco?.editor?.EditorOption;
-                        const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint;
-                        const def=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop;
-                        const efs = EO? Math.round(this.editor?.editor?.getOption(EO.fontSize) || def) : def;
-                        const ofs = Math.round(parseFloat(getComputedStyle(document.getElementById('output')).fontSize)||15);
-                        const templateSelector=document.getElementById('template-selector');
-                        const tpl = templateSelector ? (templateSelector.value||'') : '';
-                        // Scroll positions at share time
-                        let est=0, esl=0, ost=0;
-                        try{ est = Math.round(this.editor?.editor?.getScrollTop()||0); esl = Math.round(this.editor?.editor?.getScrollLeft()||0); }catch{}
-                        try{ const out=document.getElementById('output'); ost = Math.round(out.scrollTop||0); }catch{}
-                        const payloadObj = { v:2, c: code, efs, ofs, th: theme, tpl: tpl||undefined, est, esl, ost };
-                        let url=buildShortPermalink(payloadObj);
-                        url=ensureValidShortUrl(url, payloadObj);
-                        navigator.clipboard.writeText(url).then(()=>{
-                            Notification.show('✅ 短链已复制到剪贴板','success');
-                        }).catch(()=>{
-                            try{ Notification.show(url,'info',4000);}catch{}
-                        });
-                    }catch(e){ Notification.show('❌ 复制短链失败','error'); }
+            // CSV toggle handler
+            if(csvToggleBtn){
+                csvToggleBtn.addEventListener('click', ()=>{
+                    if(!lastPreviewPath) return;
+                    const isCsv = /\.(csv|tsv)$/i.test(lastPreviewPath);
+                    if(!isCsv) return;
+                    csvViewMode = (csvViewMode === 'table') ? 'raw' : 'table';
+                    csvToggleBtn.textContent = (csvViewMode === 'table') ? '显示原文' : '显示表格';
+                    updatePreview(lastPreviewText, lastPreviewPath);
                 });
             }
 
-            // Data Manager button
-            openDataManagerBtn.addEventListener('click',async()=>{
-                if(!this.workerClient){ Notification.show('⚠️ 环境未就绪','error'); return; }
-                const modal=document.getElementById('data-modal');
-                const fileListEl=document.getElementById('data-file-list');
-                const previewWrap=document.getElementById('preview-editor-container');
-                modal.classList.add('active');
-                fileListEl.innerHTML='加载中…';
-                try{ const ed = ensurePreviewEditor(); if(ed){ ed.setValue(''); layoutPreview(); } else { previewWrap.textContent=''; } }catch{}
-                try{
-                    const resp=await this.workerClient.request('list_dir',{ path:'/data' });
-                    const items = (resp && (resp.files||resp.items)) || [];
-                    renderDataList(fileListEl, items);
-                }catch(e){ fileListEl.innerHTML = '<div class="muted" style="text-align:center;">加载文件列表失败</div>'; }
-            });
-
             // Bind modal buttons
+            // Top-level Import Data button mirrors modal upload
+            if(importDataButton){ importDataButton.addEventListener('click',()=>{ const input=document.getElementById('upload-data-input'); if(!input){ Notification.show('⚠️ 上传控件不可用','error'); return; } try{ input.value=''; }catch{} input.click(); }); }
             if(uploadDataFromModalBtn){ uploadDataFromModalBtn.addEventListener('click',()=>{
                 const input = document.getElementById('upload-data-input');
                 if(!input){ Notification.show('⚠️ 上传控件不可用','error'); return; }
@@ -1434,6 +1395,20 @@
                     }
                     // reset input to allow same-file re-upload
                     try{ ev.target.value=''; }catch{}
+                });
+            }
+
+            // Open Data Manager modal
+            if(openDataManagerBtn){
+                openDataManagerBtn.addEventListener('click', async ()=>{
+                    const modal=document.getElementById('data-modal');
+                    if(modal) modal.classList.add('active');
+                    // reset preview area and controls
+                    try{ const ed = ensurePreviewEditor(); if(ed){ ed.setValue(''); layoutPreview(); } }catch{}
+                    csvViewMode='table'; if(csvToggleBtn){ csvToggleBtn.textContent='显示原文'; csvToggleBtn.style.display='none'; } if(csvStatsEl) csvStatsEl.textContent=''; lastPreviewPath=''; lastPreviewText='';
+                    const listEl=document.getElementById('data-file-list'); if(listEl) listEl.innerHTML='加载中…';
+                    try{ const resp=await this.workerClient.request('list_dir',{ path:'/data' }); const items=(resp && (resp.files||resp.items)) || []; renderDataList(listEl, items); }
+                    catch{ if(listEl) listEl.innerHTML='<div class="muted" style="text-align:center;">加载文件列表失败</div>'; }
                 });
             }
         }
