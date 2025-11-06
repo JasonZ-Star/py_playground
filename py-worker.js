@@ -732,6 +732,23 @@ self.onmessage = async (e) => {
                 }
                 break;
             }
+            case 'read_bytes': {
+                try {
+                    const p = (payload && payload.path) || '';
+                    const limit = Math.max(16, Math.min(8*1024*1024, (payload && payload.maxBytes) || 64*1024));
+                    if (!p) throw new Error('path required');
+                    if (!pyodide || !pyodide.FS) throw new Error('FS unavailable');
+                    try { await ensureDataMounted(); } catch {}
+                    const data = pyodide.FS.readFile(p);
+                    const bytes = data && data.length || 0;
+                    const len = Math.min(bytes, limit);
+                    const view = data.subarray(0, len);
+                    responsePayload = { success: true, data: view, size: bytes, truncated: bytes > limit };
+                } catch (err) {
+                    responsePayload = { success: false, error: err.message || String(err) };
+                }
+                break;
+            }
             case 'write_file': {
                 try {
                     const p = (payload && payload.path) || '';
