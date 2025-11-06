@@ -16,6 +16,7 @@ const stdlibModules = new Set();
 const installed = new Set();
 let dataMounted = false;
 let dataMountPromise = null;
+const uploadedFiles = new Set();
 
 function fsExists(path) {
     try {
@@ -686,6 +687,97 @@ self.onmessage = async (e) => {
                     responsePayload = { success: false, error: err.message || String(err) };
                 }
                 break;
+            // NEW: 文件系统能力 —— 列表、读取文本、写入/删除文件
+            case 'list_dir': {
+                try {
+                    const p = (payload && payload.path) || '/data';
+                    if (!pyodide || !pyodide.FS) throw new Error('FS unavailable');
+                    // Ensure data mount before listing
+                    try { await ensureDataMounted(); } catch {}
+                    const norm = p.replace(/\\/g,'/');
+                    let names = [];
+                    try { names = pyodide.FS.readdir(norm) || []; } catch { names = []; }
+                    const out = [];
+                    for (const name of names) {
+                        if (name === '.' || name === '..') continue;
+                        const full = (norm.endsWith('/') ? norm.slice(0,-1) : norm) + '/' + name;
+                        try {
+                            const st = pyodide.FS.stat(full);
+                            const isDir = !!(st && (st.mode & 0x4000));
+                            out.push({ name, path: full, isDir, size: st?.size || 0, canDelete: uploadedFiles.has(full) && !isDir });
+                        } catch {
+                            out.push({ name, path: full, isDir: false, size: 0, canDelete: uploadedFiles.has(full) });
+                        }
+                    }
+                    responsePayload = { success: true, items: out, files: out };
+                } catch (err) {
+                    responsePayload = { success: false, error: err.message || String(err) };
+                }
+                break;
+            }
+            case 'read_text': {
+                try {
+                    const p = (payload && payload.path) || '';
+                    const limit = Math.max(1024, Math.min(1024*1024, (payload && payload.maxBytes) || 64*1024));
+                    if (!p) throw new Error('path required');
+                    if (!pyodide || !pyodide.FS) throw new Error('FS unavailable');
+                    try { await ensureDataMounted(); } catch {}
+                    const data = pyodide.FS.readFile(p);
+                    const bytes = data && data.length || 0;
+                    const view = data.subarray(0, Math.min(bytes, limit));
+                    const txt = new TextDecoder('utf-8', { fatal: false }).decode(view);
+                    responsePayload = { success: true, text: txt, content: txt, size: bytes, truncated: bytes > limit };
+                } catch (err) {
+                    responsePayload = { success: false, error: err.message || String(err) };
+                }
+                break;
+            }
+            case 'write_file': {
+                try {
+                    const p = (payload && payload.path) || '';
+                    const overwrite = !!(payload && payload.overwrite);
+                    if (!p) throw new Error('path required');
+                    if (!pyodide || !pyodide.FS) throw new Error('FS unavailable');
+                    try { await ensureDataMounted(); } catch {}
+                    // Ensure parent dirs
+                    try { pyodide.FS.mkdirTree(p.replace(/\/[^/]*$/, '')); } catch {}
+                    const exists = fsExists(p);
+                    if (exists && !overwrite) throw new Error('File exists');
+                    let arr = null;
+                    if (payload && payload.data) {
+                        arr = payload.data instanceof Uint8Array ? payload.data : new Uint8Array(payload.data);
+                    } else if (payload && typeof payload.content === 'string') {
+                        arr = new TextEncoder().encode(payload.content);
+                    } else {
+                        throw new Error('content or data required');
+                    }
+                    pyodide.FS.writeFile(p, arr);
+                    dataMounted = true;
+                    uploadedFiles.add(p);
+                    responsePayload = { success: true };
+                } catch (err) {
+                    responsePayload = { success: false, error: err.message || String(err) };
+                }
+                break;
+            }
+            case 'delete_file': {
+                try {
+                    const p = (payload && payload.path) || '';
+                    if (!p) throw new Error('path required');
+                    if (!pyodide || !pyodide.FS) throw new Error('FS unavailable');
+                    // Only allow deleting uploaded files
+                    if (!uploadedFiles.has(p)) {
+                        responsePayload = { success: false, error: 'Readonly file' };
+                        break;
+                    }
+                    pyodide.FS.unlink(p);
+                    uploadedFiles.delete(p);
+                    responsePayload = { success: true };
+                } catch (err) {
+                    responsePayload = { success: false, error: err.message || String(err) };
+                }
+                break;
+            }
             default:
                 throw new Error(`Unknown action: ${action}`);
         }

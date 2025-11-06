@@ -48,6 +48,9 @@
             --scrollbar-bg: #f0f0f0;
             --scrollbar-thumb: #c1c1c1;
             --scrollbar-thumb-hover: #a8a8a8;
+            /* Link colors (light) */
+            --link: #1a73e8;
+            --link-hover: #0c59d1;
         }
         body.dark-mode {
             --bg: #1e1e1e;
@@ -63,6 +66,9 @@
             --scrollbar-bg: #1f1f1f;
             --scrollbar-thumb: #4a4a4a;
             --scrollbar-thumb-hover: #6a6a6a;
+            /* Link colors (dark) */
+            --link: #8ab4f8;
+            --link-hover: #a9c7ff;
         }
         html.dark-mode {
             --bg: #1e1e1e;
@@ -129,6 +135,13 @@
         #format-button:hover { background: #1ba88b; }
         #share-button { background: #4ecdc4; color: white; }
         #share-button:hover { background: #45b7b0; }
+        /* NEW util buttons */
+        #import-data-button { background:#ffb703; color:#111; }
+        #import-data-button:hover { background:#f2a900; }
+        #download-code-button { background:#009688; color:#fff; }
+        #download-code-button:hover { background:#00897b; }
+        #copy-output-button { background:#3f51b5; color:#fff; }
+        #copy-output-button:hover { background:#3949ab; }
         .output-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .output-header h3 { margin: 0; }
         .output-stats { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
@@ -149,7 +162,7 @@
         .notification.warning { border-left: 4px solid #ffc107; }
         .modal { display:none; position:fixed; inset:0; background: rgba(0,0,0,0.5); z-index:2000; justify-content:center; align-items:center; }
         .modal.active { display:flex; }
-        .modal-content { background: var(--panel-bg); color: var(--fg); padding: 30px; border-radius: 8px; max-width: 500px; width: 90%; box-shadow: 0 10px 40px var(--shadow); border:1px solid var(--panel-border); }
+        .modal-content { background: var(--panel-bg); color: var(--fg); padding: 30px; border-radius: 8px; max-width: 700px; width: 92%; box-shadow: 0 10px 40px var(--shadow); border:1px solid var(--panel-border); }
         .modal-header { font-size: 18px; font-weight: bold; margin-bottom: 15px; }
         .modal-body { margin-bottom: 20px; }
         .modal-footer { display: flex; gap: 10px; justify-content: flex-end; }
@@ -185,6 +198,18 @@
         .zoom-hint.show { opacity: .95; transform: translateY(0); }
         /* Force editor IME default to English (best-effort) */
         .monaco-editor .inputarea { ime-mode: inactive; }
+        /* Data Manager list */
+        .file-list { max-height: 260px; overflow:auto; border:1px dashed var(--panel-border); padding:8px; border-radius:6px; }
+        .file-item { display:flex; justify-content:space-between; align-items:center; padding:6px 8px; border-bottom:1px solid var(--panel-border); font-family: ui-monospace, "JetBrains Mono", monospace; font-size:12px; }
+        .file-item:last-child { border-bottom:none; }
+        .file-item .name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70%; }
+        .file-item .name.clickable { cursor:pointer; color: var(--link); text-decoration: underline; text-decoration-color: transparent; }
+        .file-item .name.clickable:hover { text-decoration-color: currentColor; color: var(--link-hover); }
+        .file-item .ops { display:flex; gap:6px; }
+        /* Preview editor container, styled like the code editor */
+        #preview-editor-container { /* height will be set dynamically */ border: 1px solid var(--panel-border); border-radius:6px; overflow: hidden; background: var(--panel-bg); }
+        /* Code editor styles for preview */
+        .monaco-editor { font-family: 'JetBrains Mono', 'LXGW WenKai Screen', monospace; font-size: 17px; line-height: 1.7; }
     </style>
 </head>
 <body class="loading">
@@ -211,9 +236,12 @@
                 <button id="run-button" class="action-button">▶️ 运行</button>
                 <button id="format-button" class="action-button">📐 格式化</button>
                 <button id="share-button" class="action-button">🔗 分享</button>
+                <button id="import-data-button" class="action-button">📤 导入数据</button>
+                <button id="download-code-button" class="action-button">📥 下载代码</button>
+                <!-- moved copy/clear output to output header -->
                 <button id="clear-code-button" class="action-button">🗑️ 清空代码</button>
-                <button id="clear-output-button" class="action-button">🗑️ 清空输出</button>
             </div>
+            <input id="upload-data-input" type="file" multiple accept=".csv,.txt,.tsv,.json,.xlsx,.xls" style="display:none" />
         </div>
         <div class="panel output-panel">
             <div class="output-header">
@@ -222,6 +250,9 @@
                     <span class="status-indicator status-idle"></span>
                     <span id="exec-time">就绪</span>
                     <button id="jump-error" class="tiny-button" style="display:none">跳转到错误行</button>
+                    <button id="open-data-manager" class="tiny-button">数据管理器</button>
+                    <button id="copy-output-button" class="tiny-button">复制输出</button>
+                    <button id="clear-output-button" class="tiny-button">清空输出</button>
                 </div>
             </div>
             <pre id="output">点击运行来执行代码</pre>
@@ -278,6 +309,27 @@
             <button class="btn-secondary" id="reset-fonts-button">重置字号</button>
             <button class="btn-primary" id="copy-shortlink-button">复制短链</button>
             <button class="btn-primary" id="close-settings-button">关闭</button>
+        </div>
+    </div>
+</div>
+<!-- Data Manager modal -->
+<div class="modal" id="data-modal" role="dialog" aria-modal="true" aria-labelledby="data-modal-title">
+    <div class="modal-content">
+        <div class="modal-header" id="data-modal-title">数据管理器（/data）</div>
+        <div class="modal-body">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+                <button class="tiny-button" id="refresh-data-list">刷新</button>
+                <button class="tiny-button" id="upload-data-from-modal">上传文件</button>
+                <span class="muted" style="font-size:12px;">支持 CSV/TXT 预览</span>
+            </div>
+            <div id="data-file-list" class="file-list" aria-live="polite">正在加载…</div>
+            <div style="margin-top:12px;">
+                <label for="preview-area" style="font-weight:600;">预览</label>
+                <div id="preview-editor-container" aria-label="预览编辑器"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" onclick="document.getElementById('data-modal').classList.remove('active')">关闭</button>
         </div>
     </div>
 </div>
@@ -705,9 +757,10 @@
     }
 
     const CONFIG = { EDITOR:{ fontSize:{desktop:18,mobile:16}, lineHeight:{desktop:28,mobile:24}, debounceMs:1000, font:"'JetBrains Mono', 'LXGW WenKai Screen', monospace", lineHeightFactor: 1.7 }, PACKAGES:{ skipStubs:['numpy'], debounceMs:1500, slowLibraries:['pandas','numpy','scipy','sklearn','tensorflow','torch','cv2','PIL'] }, COMPLETION:{ triggerChars:['.'], cacheExpireMs:1000, requestTimeoutMs:10000, maxSuggestions:30, warmupTimeoutMs:8000 }, RUNTIME:{ executionTimeoutMs:30000, mobileBreakpoint:768 }, FORBIDDEN_MODULES:['subprocess','os.system','__import__','eval','exec'] };
+    const APP_VERSION = '2025-11-06-1';
 
     class WorkerClient { constructor(workerPath, outputEl, progressEl){ this.workerPath=workerPath; this.worker=null; this.reqId=1; this.pending=new Map(); this.outputEl=outputEl; this.progressEl=progressEl; this.indexURL='pyodide/'; this.jediReady=false; this.interruptView=null; }
-        async init(indexURL='pyodide/'){ this.indexURL=indexURL; return new Promise((res,rej)=>{ try{ this.worker=new Worker(this.workerPath||'py-worker.js'); this.worker.onmessage=(e)=>this._onMessage(e); res(); }catch(e){ rej(e); } }); }
+        async init(indexURL='pyodide/'){ this.indexURL=indexURL; return new Promise((res,rej)=>{ try{ const url = `${(this.workerPath||'py-worker.js')}?v=${encodeURIComponent(APP_VERSION)}`; this.worker=new Worker(url); this.worker.onmessage=(e)=>this._onMessage(e); res(); }catch(e){ rej(e); } }); }
         async restart(){ try{ this.worker && this.worker.terminate(); }catch{} await this.init(this.indexURL); let resp=await this.request('load',{ indexURL:this.indexURL, prefer:'cdn' }); if(!resp||!resp.success) throw new Error(resp?.error||'加载 Pyodide 失败'); if(this.jediReady){ resp=await this.request('init_jedi',{}); if(!resp||!resp.success) console.warn('Jedi 重新初始化��败:',resp?.error); } if(this.interruptView){ try{ await this.request('setup_interrupt',{ sab:this.interruptView.buffer }); }catch{} } }
         setInterruptView(view){ this.interruptView=view; }
         interrupt(){ if(this.interruptView){ Atomics.store(this.interruptView,0,2); Atomics.notify(this.interruptView,0); return true; } return false; }
@@ -980,6 +1033,9 @@
             const clearOutputButton=document.getElementById('clear-output-button');
             const formatButton=document.getElementById('format-button');
             const shareButton=document.getElementById('share-button');
+            const importDataButton=document.getElementById('import-data-button');
+            const downloadCodeButton=document.getElementById('download-code-button');
+            const copyOutputButton=document.getElementById('copy-output-button');
             const templateSelector=document.getElementById('template-selector');
             const jumpError=document.getElementById('jump-error');
             const settingsBtn=document.getElementById('settings-button');
@@ -991,14 +1047,212 @@
             const resetFontsBtn=document.getElementById('reset-fonts-button');
             const closeSettingsBtn=document.getElementById('close-settings-button');
             const copyShortBtn=document.getElementById('copy-shortlink-button');
+            const refreshDataListBtn=document.getElementById('refresh-data-list');
+            const uploadDataFromModalBtn=document.getElementById('upload-data-from-modal');
+            const openDataManagerBtn=document.getElementById('open-data-manager');
+            const uploadInput=document.getElementById('upload-data-input');
+
+            // Preview helpers: create a Monaco read-only editor and update with lightweight rendering
+            let previewAutoSizer = null;
+            const layoutPreview = ()=>{
+                try{
+                    if(!this.previewEditor) return; const ed=this.previewEditor; const wrap=document.getElementById('preview-editor-container'); if(!wrap) return;
+                    const minH=120; const maxH=Math.max(240, Math.floor(window.innerHeight*0.55));
+                    let contentH=0;
+                    try{ contentH = (typeof ed.getContentHeight==='function') ? ed.getContentHeight() : 0; }catch{}
+                    if(!contentH){
+                        try{ const EO=this.monaco.editor.EditorOption; const lh = ed.getOption(EO.lineHeight)||20; const lc = ed.getModel()? ed.getModel().getLineCount(): 6; contentH = lh * lc + 8; }catch{ contentH = 200; }
+                    }
+                    const h = Math.max(minH, Math.min(maxH, Math.floor(contentH)));
+                    if(wrap.style.height !== h+'px'){ wrap.style.height = h+'px'; ed.layout(); }
+                }catch{}
+            };
+            const ensurePreviewEditor = () => {
+                try{
+                    if(this.previewEditor && !this.previewEditor.isDisposed?.()) return this.previewEditor;
+                    const wrap=document.getElementById('preview-editor-container');
+                    if(!wrap || !this.monaco) return null;
+                    const baseFs = (()=>{ try{ const EO=this.monaco.editor.EditorOption; return Math.round(this.editor?.editor?.getOption(EO.fontSize)||16); }catch{ return 16; } })();
+                    this.previewEditor = this.monaco.editor.create(wrap, {
+                        value: '',
+                        language: 'plaintext',
+                        readOnly: true,
+                        theme: document.body.classList.contains('dark-mode') ? 'vs-dark' : 'vs',
+                        automaticLayout: true,
+                        fontFamily: CONFIG.EDITOR.font,
+                        fontSize: baseFs,
+                        minimap: { enabled:false },
+                        wordWrap: 'on',
+                        scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 }
+                    });
+                    try{
+                        // Re-layout when content size changes
+                        this.previewEditor.onDidContentSizeChange(()=> layoutPreview());
+                        // Initial small height; will expand on first content
+                        layoutPreview();
+                    }catch{}
+                    return this.previewEditor;
+                }catch{ return null; }
+            };
+            const renderCSV = (raw, delim=',', maxRows=50, maxCols=50) => {
+                const lines = String(raw||'').split(/\r?\n/).slice(0, maxRows);
+                const rows = lines.map(l=> l.split(delim).slice(0, maxCols).map(c=>c.trim()));
+                if(rows.length===0) return '';
+                const colCount = Math.min(maxCols, Math.max(...rows.map(r=>r.length))||0);
+                const widths = Array.from({length: colCount}, (_,i)=> Math.min(40, Math.max(3, ...rows.map(r=> (r[i]||'').length))));
+                const pad = (s,w)=>{
+                    s = (s||'').slice(0, w);
+                    const padLen = Math.max(0, w - s.length);
+                    return s + ' '.repeat(padLen);
+                };
+                const linesOut = rows.map(r=> ' ' + Array.from({length: colCount}, (_,i)=> pad(r[i]||'', widths[i])).join(' | ') + ' ');
+                return linesOut.join('\n');
+            };
+            const updatePreview = (text, path='')=>{
+                const ed = ensurePreviewEditor(); if(!ed){ try{ Notification.show('预览区域不可用','error'); }catch{} return; }
+                const p=String(path||'').toLowerCase();
+                let content = String(text==null? '': text);
+                // Lightweight renderers
+                if(p.endsWith('.json')){
+                    try{ const obj = JSON.parse(content); content = JSON.stringify(obj, null, 2); }catch{}
+                } else if(p.endsWith('.csv')){
+                    content = renderCSV(content, ',');
+                } else if(p.endsWith('.tsv')){
+                    content = renderCSV(content, '\t');
+                }
+                if(content.length>200000) content = content.slice(0,200000);
+                // Language hint
+                let lang='plaintext';
+                if(p.endsWith('.json')) lang='json';
+                else if(p.endsWith('.py')) lang='python';
+                else if(p.endsWith('.csv')||p.endsWith('.tsv')) lang='plaintext';
+                try{ this.monaco.editor.setModelLanguage(ed.getModel(), lang); }catch{}
+                try{ ed.setValue(content); ed.setScrollTop(0); }catch{}
+                layoutPreview();
+            };
+
+            const makeReadSnippet = (path) => {
+                const p = String(path||'');
+                const lower = p.toLowerCase();
+                if(lower.endsWith('.csv')){
+                    return `import pandas as pd\n\n# 读取 CSV\ndf = pd.read_csv('${p}')\nprint(df.head())`;
+                }
+                if(lower.endsWith('.tsv')){
+                    return `import pandas as pd\n\n# 读取 TSV\ndf = pd.read_csv('${p}', sep='\t')\nprint(df.head())`;
+                }
+                if(lower.endsWith('.json')){
+                    return `import pandas as pd\n\n# 读取 JSON\ndf = pd.read_json('${p}')\nprint(df.head())`;
+                }
+                if(lower.endsWith('.xlsx') || lower.endsWith('.xls')){
+                    return `import pandas as pd\n\n# 读取 Excel\ndf = pd.read_excel('${p}')\nprint(df.head())`;
+                }
+                if(lower.endsWith('.txt')){
+                    return `# 读取文本\nwith open('${p}', 'r', encoding='utf-8') as f:\n    text = f.read()\nprint(text[:500])`;
+                }
+                return `# 通用读取（按需修改）\nwith open('${p}', 'rb') as f:\n    data = f.read()\nprint(len(data), 'bytes')`;
+            };
 
             runButton.addEventListener('click',()=>this.runCode());
             stopButton.addEventListener('click',()=>this.stop());
             clearCodeButton.addEventListener('click',()=>this.clearCode());
-            clearOutputButton.addEventListener('click',()=>this.clearOutput());
+            // removed early clearOutputButton listener (button now in output header)
             formatButton.addEventListener('click',()=>this.formatCode());
             shareButton.addEventListener('click',()=>this.shareCode());
+            importDataButton.addEventListener('click',()=>{
+                const input = document.getElementById('upload-data-input');
+                if(!input){ Notification.show('⚠️ 上传控件不可用','error'); return; }
+                try{ input.value=''; }catch{}
+                input.click();
+            });
+            downloadCodeButton.addEventListener('click',()=>{ this.downloadCode(); });
+            copyOutputButton.addEventListener('click',()=>{ this.copyOutput(); });
+            clearOutputButton.addEventListener('click',()=>this.clearOutput());
             jumpError.addEventListener('click',()=>{ if(typeof this.lastErrorLine==='number' && this.editor?.editor){ this.editor.editor.revealLineInCenter(this.lastErrorLine); } });
+
+            const renderDataList = (container, items) => {
+                container.innerHTML = '';
+                if(!items || !items.length){
+                    container.innerHTML = '<div class="muted" style="text-align:center;">没有找到文件</div>';
+                    return;
+                }
+                items.forEach(file=>{
+                    const item = document.createElement('div');
+                    item.className = 'file-item';
+                    const badge = file.isDir ? '📁' : '📄';
+                    const delDisabled = !file.canDelete || file.isDir;
+                    const disabledAttr = file.isDir ? 'disabled' : '';
+                    const nameCls = file.isDir ? 'name' : 'name clickable';
+                    item.innerHTML = `
+                        <div class="${nameCls}" data-path="${file.path}" data-isdir="${file.isDir? '1':'0'}" title="${file.path}">${badge} ${file.name}</div>
+                        <div class="ops">
+                            <button class="tiny-button open-file" data-path="${file.path}" ${disabledAttr}>打开</button>
+                            <button class="tiny-button copy-path" data-path="${file.path}" ${disabledAttr}>复制路径</button>
+                            <button class="tiny-button copy-snippet" data-path="${file.path}" ${disabledAttr}>复制读取示例</button>
+                            <button class="tiny-button insert-snippet" data-path="${file.path}" ${disabledAttr}>插入读取示例</button>
+                            ${delDisabled? '' : `<button class="tiny-button delete-file" data-path="${file.path}">删除</button>`}
+                        </div>
+                    `;
+                    container.appendChild(item);
+                });
+                // Preview on name click
+                container.querySelectorAll('.file-item .name.clickable').forEach(el=>{
+                    el.addEventListener('click', async ()=>{
+                        const path = el.getAttribute('data-path'); const isDir = el.getAttribute('data-isdir')==='1';
+                        if(!path || isDir) return; updatePreview('加载中…');
+                        try{ const resp=await this.workerClient.request('read_text',{ path }); if(resp && resp.success){ const content = resp.content || resp.text || ''; updatePreview(content, path); } else { updatePreview('加载文件内容失败'); } }
+                        catch{ updatePreview('加载文件内容失败'); }
+                    });
+                });
+                // Preview on button click
+                container.querySelectorAll('.open-file').forEach(btn=>{
+                    btn.addEventListener('click', async ()=>{
+                        const path = btn.getAttribute('data-path'); if(!path) return;
+                        updatePreview('加载中…');
+                        try{ const resp=await this.workerClient.request('read_text',{ path }); if(resp && resp.success){ const content = resp.content || resp.text || ''; updatePreview(content, path); } else { updatePreview('加载文件内容失败'); } }
+                        catch{ updatePreview('加载文件内容失败'); }
+                    });
+                });
+                container.querySelectorAll('.copy-path').forEach(btn=>{
+                    btn.addEventListener('click', async ()=>{
+                        const path = btn.getAttribute('data-path'); if(!path) return;
+                        try{ await navigator.clipboard.writeText(path); Notification.show('✅ 路径已复制: '+path,'success'); }catch{ Notification.show('❌ 复制路径失败','error'); }
+                    });
+                });
+                container.querySelectorAll('.copy-snippet').forEach(btn=>{
+                    btn.addEventListener('click', async ()=>{
+                        const path = btn.getAttribute('data-path'); if(!path) return; const snippet = makeReadSnippet(path);
+                        try{ await navigator.clipboard.writeText(snippet); Notification.show('✅ 读取示例已复制','success'); }catch{ Notification.show('❌ 复制失败','error'); }
+                    });
+                });
+                container.querySelectorAll('.insert-snippet').forEach(btn=>{
+                    btn.addEventListener('click', ()=>{
+                        const path = btn.getAttribute('data-path'); if(!path || !this.editor?.editor) return; const snippet = '\n' + makeReadSnippet(path) + '\n';
+                        try{
+                            const ed = this.editor.editor;
+                            const pos = ed.getPosition();
+                            ed.executeEdits('insertSnippet',[{ range: new this.monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column), text: snippet }]);
+                            ed.focus();
+                            Notification.show('✅ 已插入读取示例','success');
+                        }catch{ Notification.show('❌ 插入失败','error'); }
+                    });
+                });
+                container.querySelectorAll('.delete-file').forEach(btn=>{
+                    btn.addEventListener('click', async ()=>{
+                        const path = btn.getAttribute('data-path'); if(!path) return;
+                        if(!confirm('只允许删除你上传的文件，确定删除吗？')) return;
+                        try{
+                            const resp=await this.workerClient.request('delete_file',{ path });
+                            if(resp && resp.success){
+                                Notification.show('文件已删除','success');
+                                const listResp=await this.workerClient.request('list_dir',{ path:'/data' });
+                                renderDataList(document.getElementById('data-file-list'), (listResp && (listResp.files||listResp.items)) || []);
+                            } else {
+                                Notification.show(resp?.error||'删除文件失败','error');
+                            }
+                        }catch(err){ Notification.show('删除文件失败','error'); }
+                    });
+                });
+            };
 
             this.editor.onChange((code)=>{ this.packageManager.debounceInstall(code); });
             if(typeof codeTemplates!=='undefined'){ this.setupTemplateSelector(templateSelector); }
@@ -1120,71 +1374,68 @@
                 });
             }
 
-            // Focus tracking for zoom target
-            try{ this.editor?.editor?.onDidFocusEditorText(()=>{ this.activeArea='editor'; }); }catch{}
-            const outputEl=document.getElementById('output');
-            try{ outputEl.setAttribute('tabindex','0'); }catch{}
-            outputEl.addEventListener('focus',()=>{ this.activeArea='output'; });
-            outputEl.addEventListener('mouseenter',()=>{ this.activeArea='output'; });
-
-            // Dark mode & help remain
-            document.getElementById('dark-mode-button').addEventListener('click',()=>{
-                const isDark = !document.body.classList.contains('dark-mode');
-                document.body.classList.toggle('dark-mode', isDark);
-                document.documentElement.classList.toggle('dark-mode', isDark);
-                StorageManager.setTheme(isDark?'dark':'light');
-                if(this.monaco) this.monaco.editor.setTheme(isDark?'vs-dark':'vs');
-                Notification.show(`✨ 已切换为${isDark?'深色':'浅色'}模式`,'success');
-            });
-            document.getElementById('help-button').addEventListener('click',()=>document.getElementById('help-modal').classList.add('active'));
-
-            // 初始化自适应气泡
-            this.initAdaptiveTooltips();
-
-            // Ctrl + MouseWheel zoom for Output (Editor uses official mouseWheelZoom)
-            try {
-                const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-                outputEl.addEventListener('wheel', (ev)=>{
-                    if (!ev.ctrlKey) return; ev.preventDefault();
-                    const style = getComputedStyle(outputEl);
-                    const curPx = parseFloat(style.fontSize) || 15;
-                    const dir = ev.deltaY < 0 ? 1 : -1;
-                    const step = Math.abs(ev.deltaY) >= 50 ? 2 : 1;
-                    const next = clamp(Math.round(curPx + dir*step), 10, 28);
-                    outputEl.style.fontSize = `${next}px`;
-                    StorageManager.setOutputFontSize(next);
-                    ZoomHint.showOutput(next);
-                }, { passive: false });
-            } catch (e) { console.warn('Bind wheel zoom failed:', e); }
-
-            // 资源加载失败友好提示
-            window.addEventListener('error', (ev) => {
-                const t = ev && ev.target;
-                if (!t || !(t.tagName === 'SCRIPT' || t.tagName === 'LINK')) return;
-                try {
-                    const url = t.src || t.href || '';
-                    Notification.show(`⚠️ 资源加载失败，已尝试备用源：${url}`,'warning', 4000);
-                } catch {}
-            }, true);
-
-            // URL <-> 模板选择器：处理浏览器前进/后退
-            window.addEventListener('popstate', () => {
+            // Data Manager button
+            openDataManagerBtn.addEventListener('click',async()=>{
+                if(!this.workerClient){ Notification.show('⚠️ 环境未就绪','error'); return; }
+                const modal=document.getElementById('data-modal');
+                const fileListEl=document.getElementById('data-file-list');
+                const previewWrap=document.getElementById('preview-editor-container');
+                modal.classList.add('active');
+                fileListEl.innerHTML='加载中…';
+                try{ const ed = ensurePreviewEditor(); if(ed){ ed.setValue(''); layoutPreview(); } else { previewWrap.textContent=''; } }catch{}
                 try{
-                    const url = new URL(window.location);
-                    const t = url.searchParams.get('template');
-                    const sel = document.getElementById('template-selector');
-                    if(!sel) return;
-                    if(t && typeof codeTemplates !== 'undefined' && codeTemplates[t]){
-                        if(sel.value !== t) sel.value = t;
-                        // 加载模板代码（这是用户回退/前进的意图）
-                        this.editor.setValue(codeTemplates[t]);
-                        Notification.show(`📚 已加载示例: ${t}`,'success');
-                    } else {
-                        // 无 template 参数时仅清空选择，不改动现有代码
-                        sel.value = '';
-                    }
-                }catch(e){ console.warn('popstate template sync failed:', e); }
+                    const resp=await this.workerClient.request('list_dir',{ path:'/data' });
+                    const items = (resp && (resp.files||resp.items)) || [];
+                    renderDataList(fileListEl, items);
+                }catch(e){ fileListEl.innerHTML = '<div class="muted" style="text-align:center;">加载文件列表失败</div>'; }
             });
+
+            // Bind modal buttons
+            if(uploadDataFromModalBtn){ uploadDataFromModalBtn.addEventListener('click',()=>{
+                const input = document.getElementById('upload-data-input');
+                if(!input){ Notification.show('⚠️ 上传控件不可用','error'); return; }
+                try{ input.value=''; }catch{}
+                input.click();
+            }); }
+            if(refreshDataListBtn){ refreshDataListBtn.addEventListener('click', async()=>{
+                const el=document.getElementById('data-file-list'); el.innerHTML='加载中…';
+                try{ const resp=await this.workerClient.request('list_dir',{ path:'/data' }); const items=(resp && (resp.files||resp.items)) || []; renderDataList(el, items); }
+                catch{ el.innerHTML='<div class="muted" style="text-align:center;">加载文件列表失败</div>'; }
+            }); }
+            if(uploadInput){
+                uploadInput.addEventListener('change', async (ev)=>{
+                    const files = Array.from(ev.target.files||[]);
+                    if(!files.length){ Notification.show('未选择文件','warning',1500); return; }
+                    if(!this.workerClient){ Notification.show('⚠️ 环境未就绪','error'); return; }
+                    Notification.show(`开始上传 ${files.length} 个文件…`,'info',1200);
+                    let okCount=0, failCount=0; let lastPath='';
+                    for(const file of files){
+                        try{
+                            const buf = await file.arrayBuffer();
+                            const safeName = file.name.replace(/[^A-Za-z0-9._-]+/g,'_');
+                            const path = '/data/' + (safeName || ('file_' + Date.now()));
+                            const resp = await this.workerClient.request('write_file',{ path, data: new Uint8Array(buf), overwrite: true });
+                            if(resp && resp.success){ okCount++; lastPath=path; } else { failCount++; }
+                        }catch{ failCount++; }
+                    }
+                    const note = files.length===1 && lastPath ? `（路径：${lastPath}）` : '';
+                    Notification.show(`上传完成：成功 ${okCount}，失败 ${failCount} ${note}`.trim(),(failCount?'warning':'success'), 3000);
+                    if(files.length===1 && lastPath){
+                        try{ await navigator.clipboard.writeText(lastPath); Notification.show('✅ 已将路径复制到剪贴板','success',1500); }catch{}
+                    }
+                    // refresh list if modal open
+                    const modal=document.getElementById('data-modal');
+                    if(modal && modal.classList.contains('active')){
+                        try{
+                            const listResp=await this.workerClient.request('list_dir',{ path:'/data' });
+                            const items=(listResp && (listResp.files||listResp.items)) || [];
+                            renderDataList(document.getElementById('data-file-list'), items);
+                        }catch{}
+                    }
+                    // reset input to allow same-file re-upload
+                    try{ ev.target.value=''; }catch{}
+                });
+            }
         }
         initAdaptiveTooltips(){
             const buttons = document.querySelectorAll('.icon-button[data-tooltip]');
@@ -1257,6 +1508,31 @@
                 modal.classList.add('active');
                 Notification.show('✅ 分享链接已复制到剪贴板','success');
             }).catch(()=>{ Notification.show('❌ 复制失败，请手动复制','error'); });
+        }
+        downloadCode(){
+            const code=this.editor.getValue();
+            const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '代码.py';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 100);
+            Notification.show('✅ 代码已下载','success');
+        }
+        copyOutput(){
+            const outputElement=document.getElementById('output');
+            const text = outputElement.textContent.trim();
+            if(!text){ Notification.show('⚠️ 输出为空','error'); return; }
+            navigator.clipboard.writeText(text).then(()=>{
+                Notification.show('✅ 输出已复制到剪贴板','success');
+            }).catch(()=>{
+                Notification.show('❌ 复制输出失败，请手动复制','error');
+            });
         }
         clearCode(){ if(confirm('确定要清空代码吗？')){ this.editor.setValue(''); StorageManager.saveCode(''); Notification.show('🗑️ 代码已清空','info'); } }
         clearOutput(){ document.getElementById('output').textContent='清空完成'; document.getElementById('exec-time').textContent='就绪'; Notification.show('🗑️ 输出已清空','info'); }
