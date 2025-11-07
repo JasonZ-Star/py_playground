@@ -795,6 +795,46 @@ self.onmessage = async (e) => {
                 }
                 break;
             }
+            // NEW: file stat (size, isDir) for virtualization
+            case 'stat_file': {
+                try {
+                    const p = (payload && payload.path) || '';
+                    if (!p) throw new Error('path required');
+                    if (!pyodide || !pyodide.FS) throw new Error('FS unavailable');
+                    const st = pyodide.FS.stat(p);
+                    const isDir = !!(st && (st.mode & 0x4000));
+                    responsePayload = { success: true, size: st?.size || 0, isDir };
+                } catch (err) {
+                    responsePayload = { success: false, error: err.message || String(err) };
+                }
+                break;
+            }
+            // NEW: ranged read for large files (returns bytes)
+            case 'read_range': {
+                try {
+                    const p = (payload && payload.path) || '';
+                    let offset = Math.max(0, Math.floor((payload && payload.offset) || 0));
+                    let length = Math.max(0, Math.floor((payload && payload.length) || 0));
+                    if (!p) throw new Error('path required');
+                    if (!pyodide || !pyodide.FS) throw new Error('FS unavailable');
+                    const st = pyodide.FS.stat(p);
+                    const size = st?.size || 0;
+                    if (offset >= size) { responsePayload = { success: true, data: new Uint8Array(0), size, offset, length: 0, eof: true }; break; }
+                    const maxLen = Math.min(length, Math.max(0, size - offset));
+                    const fd = pyodide.FS.open(p, 'r');
+                    try {
+                        const buf = new Uint8Array(maxLen);
+                        const n = pyodide.FS.read(fd, buf, 0, maxLen, offset);
+                        const view = n < buf.length ? buf.subarray(0, n) : buf;
+                        responsePayload = { success: true, data: view, size, offset, length: view.length, eof: (offset + view.length) >= size };
+                    } finally {
+                        try { pyodide.FS.close(fd); } catch {}
+                    }
+                } catch (err) {
+                    responsePayload = { success: false, error: err.message || String(err) };
+                }
+                break;
+            }
             default:
                 throw new Error(`Unknown action: ${action}`);
         }

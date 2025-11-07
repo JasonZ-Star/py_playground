@@ -208,10 +208,12 @@
         .file-item .ops { display:flex; gap:6px; }
         /* Preview editor container, styled like the code editor */
         #preview-editor-container { /* height will be set dynamically */ border: 1px solid var(--panel-border); border-radius:6px; overflow: hidden; background: var(--panel-bg); }
-        /* Code editor styles for preview */
-        .monaco-editor { font-family: 'JetBrains Mono', 'LXGW WenKai Screen', monospace; font-size: 17px; line-height: 1.7; }
-        .preview-controls { display:flex; align-items:center; gap:8px; margin: 6px 0; }
-        .preview-controls .muted { color: var(--muted); font-size: 12px; }
+        /* Virtual CSV container styled similar to editor */
+        #csv-virtual-container { border: 1px solid var(--panel-border); border-radius:6px; background: var(--panel-bg); font-family: 'JetBrains Mono', 'LXGW WenKai Screen', monospace; font-size: 17px; line-height: 1.7; overflow: auto; display: none; }
+        .csv-rows { position: relative; }
+        .csv-row { display: grid; border-bottom: 1px solid var(--panel-border); white-space: pre; }
+        .csv-row.header { position: sticky; top: 0; z-index: 2; background: var(--panel-bg); border-bottom: 2px solid var(--panel-border); font-weight: 600; }
+        .csv-cell { padding: 2px 8px; overflow: hidden; text-overflow: ellipsis; }
     </style>
 </head>
 <body class="loading">
@@ -332,6 +334,7 @@
                     <span id="csv-stats" class="muted"></span>
                 </div>
                 <div id="preview-editor-container" aria-label="预览编辑器"></div>
+                <div id="csv-virtual-container" aria-label="CSV 虚拟表格" role="table"></div>
             </div>
         </div>
         <div class="modal-footer">
@@ -1154,6 +1157,7 @@
                 }
                 return { rowCount: Math.max(0, lines.length), colCount, nulls };
             };
+            // Lightweight renderer (non-virtual) fallback for small CSV
             const renderCSV = (text, delim=',') => {
                 const lines = text.split(/\r?\n/).slice(0, 201);
                 if(!lines.length) return '';
@@ -1167,6 +1171,86 @@
                 for(let i=1;i<rows.length;i++){ out += fmtRow(rows[i]) + '\n'; }
                 return out;
             };
+            // Virtual CSV renderer class
+            class VirtualCSVRenderer {
+                constructor(container, workerClient, opts){ this.container=container; this.worker=workerClient; this.opts=Object.assign({ path:'', delim:',', lineHeight:26, chunkSize:512*1024, overscan:20 }, opts||{}); this.rowsHost=null; this.spacer=null; this.header=null; this.fileSize=0; this.lineIndex=[0]; this.indexedUntil=0; this.eof=false; this.gridTemplate=''; this.colCount=0; this.colWidths=[]; this.scrollHandler=this.onScroll.bind(this); this.resizeObserver=null; this._renderPending=false; }
+                async init(){ if(!this.container||!this.worker) return; this.container.innerHTML=''; this.container.style.display='block'; this.rowsHost=document.createElement('div'); this.rowsHost.className='csv-rows'; this.spacer=document.createElement('div'); this.spacer.style.height='0px'; this.rowsHost.appendChild(this.spacer); this.container.appendChild(this.rowsHost); // file stat
+                    try{ const st = await this.worker.request('stat_file',{ path: this.opts.path }); this.fileSize = (st&&st.success)? (st.size||0) : 0; }catch{ this.fileSize=0; }
+                    await this.ensureIndexed(Math.min(200, 1000)); // index some lines
+                    await this.sampleColumns();
+                    this.attach();
+                    this.render();
+                }
+                attach(){ this.container.addEventListener('scroll', this.scrollHandler, { passive:true }); try{ this.resizeObserver = new ResizeObserver(()=> this.render()); this.resizeObserver.observe(this.container); }catch{} }
+                detach(){ try{ this.container.removeEventListener('scroll', this.scrollHandler); }catch{} try{ this.resizeObserver && this.resizeObserver.disconnect(); }catch{} this.container.style.display='none'; this.container.innerHTML=''; }
+                async ensureIndexed(targetLine){ if(this.eof) return; if(this.lineIndex.length-1 >= targetLine) return;
+                    let offset = this.indexedUntil; if(offset<=0) offset = 0; let safety=0;
+                    while(this.lineIndex.length-1 < targetLine && !this.eof && safety<100){
+                        const len = Math.min(this.opts.chunkSize, Math.max(1, this.fileSize - offset));
+                        if(len<=0){ this.eof=true; break; }
+                        let r; try{ r = await this.worker.request('read_range',{ path:this.opts.path, offset, length: len }); }catch{ break; }
+                        const buf = (r && r.success && r.data) ? (r.data.constructor===Uint8Array? r.data : new Uint8Array(r.data)) : new Uint8Array(0);
+                        const n = buf.length; if(n===0){ this.eof = (offset>=this.fileSize); break; }
+                        // scan for LF and push next line start offsets
+                        for(let i=0;i<n;i++){
+                            if(buf[i]===10){ // \n
+                                const prevByte = (i>0)? buf[i-1] : -1; const isCRLF = (prevByte===13);
+                                const nextStart = offset + i + 1;
+                                // Avoid duplicate if already at end
+                                if(nextStart>=0) this.lineIndex.push(nextStart);
+                            }
+                        }
+                        offset += n; this.indexedUntil = offset; if(offset>=this.fileSize){ this.eof=true; if(this.lineIndex[this.lineIndex.length-1]!==this.fileSize){ this.lineIndex.push(this.fileSize); } break; }
+                        safety++;
+                    }
+                    // Ensure we always have terminal sentinel
+                    if(this.eof && this.lineIndex[this.lineIndex.length-1]!==this.fileSize){ this.lineIndex.push(this.fileSize); }
+                }
+                async sampleColumns(){ // read first few KB to detect header and widths
+                    let r; try { r = await this.worker.request('read_range',{ path:this.opts.path, offset: 0, length: Math.min(this.fileSize||0, 128*1024) }); } catch {}
+                    const buf = r && r.data ? (r.data.constructor===Uint8Array? r.data : new Uint8Array(r.data)) : new Uint8Array();
+                    const text = new TextDecoder().decode(buf);
+                    const lines = text.split(/\r?\n/).filter(Boolean).slice(0, 200);
+                    const delim = this.opts.delim;
+                    const rows = lines.map(l=> l.split(delim));
+                    this.colCount = rows.reduce((m,r)=> Math.max(m, r.length), 0);
+                    const widths = new Array(this.colCount).fill(6);
+                    for(const r0 of rows){ for(let i=0;i<this.colCount;i++){ const v=String(r0[i]??''); widths[i] = Math.min(40, Math.max(widths[i], v.length+1)); } }
+                    this.colWidths = widths;
+                    this.gridTemplate = widths.map(w=> `${w}ch`).join(' ');
+                    // header from first row
+                    this.header = rows.length? rows[0] : [];
+                }
+                async readLines(startLine, endLine){ endLine = Math.max(startLine, endLine); await this.ensureIndexed(endLine+1); const sOff = this.lineIndex[Math.min(startLine, this.lineIndex.length-1)] || 0; const eOff = this.lineIndex[Math.min(endLine+1, this.lineIndex.length-1)] || this.fileSize; const len = Math.max(0, eOff - sOff); let r; try{ r = await this.worker.request('read_range',{ path:this.opts.path, offset: sOff, length: len }); }catch{ return []; }
+                    const buf = r && r.data ? (r.data.constructor===Uint8Array? r.data : new Uint8Array(r.data)) : new Uint8Array();
+                    const text = new TextDecoder().decode(buf);
+                    let rawLines = text.split(/\n/);
+                    // strip trailing \r
+                    rawLines = rawLines.map(s=> s.endsWith('\r')? s.slice(0,-1): s);
+                    // If end aligned exactly, we may have one extra empty line
+                    if(rawLines.length>0 && rawLines[rawLines.length-1]===''){ rawLines.pop(); }
+                    return rawLines.map(l=> l.split(this.opts.delim));
+                }
+                get totalLines(){ // approximate: lineIndex length minus sentinel
+                    const hasSentinel = (this.lineIndex.length>0 && this.lineIndex[this.lineIndex.length-1]===this.fileSize);
+                    return Math.max(0, this.lineIndex.length - (hasSentinel?1:0));
+                }
+                render(){ if(this._renderPending){ return; } this._renderPending = true; requestAnimationFrame(async ()=>{ this._renderPending=false; if(!this.container) return; const ch = this.container.clientHeight||300; const lh = this.opts.lineHeight; const visible = Math.ceil(ch / lh) + this.opts.overscan; const scrollTop = this.container.scrollTop||0; const start = Math.max(0, Math.floor(scrollTop / lh) - Math.floor(this.opts.overscan/2)); const end = start + visible; await this.ensureIndexed(end+1); let rows = await this.readLines(start, end); // build DOM
+                        // If rendering from top and header exists, drop the first data row to avoid duplicate header
+                        if(this.header && this.header.length && start===0 && rows.length>0){ rows = rows.slice(1); }
+                        const frag = document.createDocumentFragment();
+                        // header row
+                        if(this.header && this.header.length){ const hr = document.createElement('div'); hr.className='csv-row header'; hr.style.gridTemplateColumns = this.gridTemplate; this.header.forEach((v,i)=>{ const c=document.createElement('div'); c.className='csv-cell'; c.textContent = v; hr.appendChild(c); }); frag.appendChild(hr); }
+                        rows.forEach((cols)=>{ const row = document.createElement('div'); row.className='csv-row'; row.style.gridTemplateColumns = this.gridTemplate; for(let i=0;i<this.colCount;i++){ const cell=document.createElement('div'); cell.className='csv-cell'; cell.textContent = String(cols[i]??''); row.appendChild(cell); } frag.appendChild(row); });
+                        // position
+                        const topPad = start * lh + (this.header? lh: 0);
+                        this.rowsHost.innerHTML=''; const padTopDiv = document.createElement('div'); padTopDiv.style.height = topPad + 'px'; this.rowsHost.appendChild(padTopDiv); this.rowsHost.appendChild(frag);
+                        // spacer to set total height
+                        const total = Math.max(this.totalLines * lh + (this.header? lh: 0), ch);
+                        const spacerTail = document.createElement('div'); spacerTail.style.height = Math.max(0, total - (topPad + (rows.length+ (this.header?1:0))*lh)) + 'px'; this.rowsHost.appendChild(spacerTail);
+                    }); }
+                onScroll(){ this.render(); }
+            }
             const layoutPreview = ()=>{
                 try{
                     const ed = ensurePreviewEditor(); if(!ed) return;
@@ -1177,6 +1261,12 @@
                     const container = document.getElementById('preview-editor-container');
                     container.style.height = h + 'px';
                     ed.layout();
+                }catch{}
+            };
+            const layoutVirtual = ()=>{
+                try{
+                    const cont = document.getElementById('csv-virtual-container'); if(!cont) return; const lh = 26; const visLines = 16; const h = Math.max(140, Math.min(520, Math.round(lh*visLines)));
+                    cont.style.height = h + 'px';
                 }catch{}
             };
 
@@ -1214,34 +1304,53 @@
                  this.previewEditor = editor;
                  return editor;
              };
+            let csvVirtual = null;
             const updatePreview = (text, path='') => {
                 const ed = ensurePreviewEditor(); if(!ed) return;
                 const p = String(path||'').toLowerCase();
                 let content = String(text==null? '' : text);
                 lastPreviewPath = path;
                 lastPreviewText = content;
-                // CSV/TSV: render monospaced table in editor when in 'table' mode
+                const csvContainer = document.getElementById('csv-virtual-container');
+                const editorContainer = document.getElementById('preview-editor-container');
+                if (csvVirtual) { try{ csvVirtual.detach(); }catch{} csvVirtual=null; }
+                // CSV/TSV handling
                 if (/\.(csv|tsv)$/.test(p)){
                     const delim = p.endsWith('.tsv') ? '\t' : ',';
-                    const stats = csvStats(content, delim);
-                    if (csvStatsEl) csvStatsEl.textContent = `预览行数: ${stats.rowCount} 列数: ${stats.colCount} 空值(预览): ${stats.nulls}`;
+                    // compute quick stats from first chunk
+                    (async ()=>{
+                        try{ const r = await this.workerClient.request('read_text',{ path, maxBytes: 200*1024 }); const s = csvStats(r && (r.text||r.content)||'', delim); if (csvStatsEl) csvStatsEl.textContent = `预览行数: ${s.rowCount} 列数: ${s.colCount} 空值(预览): ${s.nulls}`; }catch{ if (csvStatsEl) csvStatsEl.textContent=''; }
+                    })();
                     if (csvToggleBtn) { csvToggleBtn.style.display = 'inline-block'; csvToggleBtn.textContent = (csvViewMode==='table')? '显示原文' : '显示表格'; }
-                    if (csvViewMode==='table') content = renderCSV(content, delim);
+                    if (csvViewMode==='table'){
+                        // show virtual container, hide editor
+                        if (editorContainer) editorContainer.style.display='none';
+                        if (csvContainer) { csvContainer.style.display='block'; layoutVirtual(); csvVirtual = new VirtualCSVRenderer(csvContainer, this.workerClient, { path, delim }); csvVirtual.init(); }
+                        return;
+                    } else {
+                        // raw mode, fall back to editor
+                        if (csvContainer) csvContainer.style.display='none';
+                        if (editorContainer) editorContainer.style.display='block';
+                        let lang='plaintext'; try { this.monaco.editor.setModelLanguage(ed.getModel(), lang); } catch {}
+                        try { ed.setValue(content); ed.setScrollTop(0); } catch {}
+                        layoutPreview();
+                        return;
+                    }
                 } else {
                     if (csvStatsEl) {
-                        // lightweight stats for md/yaml/html
                         if (/\.(md|markdown)$/.test(p)){
                             try{ const heads = content.split(/\r?\n/).filter(l=>/^\s*#+\s+/.test(l)).slice(0,8).map(l=>l.replace(/^\s*(#+)\s+/, (m,hs)=> (hs.length>1?('H'+hs.length):'H1')+': ')); csvStatsEl.textContent = heads.length? `标题 ${heads.length} 个 · ${heads.join(' | ')}` : 'Markdown 文档'; }catch{ csvStatsEl.textContent='Markdown 文档'; }
                         } else if (/\.(ya?ml)$/.test(p)){
                             try{ const keys = Array.from(content.matchAll(/^([A-Za-z0-9_-]+):\s*/gm)).map(m=>m[1]).slice(0,12); const u=Array.from(new Set(keys)); csvStatsEl.textContent = u.length? `顶层键 ${u.length} 个 · ${u.join(', ')}` : 'YAML 文档'; }catch{ csvStatsEl.textContent='YAML 文档'; }
                         } else if (/\.(html?)$/.test(p)){
                             try{ const m = content.match(/<title[^>]*>([\s\S]*?)<\/title>/i); const title=(m?m[1].replace(/\s+/g,' ').trim():''); const hCount=(content.match(/<h[1-6][^>]*>/gi)||[]).length; csvStatsEl.textContent = `HTML${title?` · 标题: ${title}`:''} · 头部标签: ${hCount}`; }catch{ csvStatsEl.textContent='HTML 文档'; }
-                        } else {
-                            csvStatsEl.textContent='';
-                        }
+                        } else { csvStatsEl.textContent=''; }
                     }
                     if (csvToggleBtn) csvToggleBtn.style.display='none';
                 }
+                // non-CSV: show editor
+                if (csvContainer) csvContainer.style.display='none';
+                if (editorContainer) editorContainer.style.display='block';
                 // Language hint
                 let lang='plaintext';
                 if (p.endsWith('.json')) lang='json';
