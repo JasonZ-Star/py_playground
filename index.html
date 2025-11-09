@@ -214,6 +214,12 @@
         .csv-row { display: grid; border-bottom: 1px solid var(--panel-border); white-space: pre; }
         .csv-row.header { position: sticky; top: 0; z-index: 2; background: var(--panel-bg); border-bottom: 2px solid var(--panel-border); font-weight: 600; }
         .csv-cell { padding: 2px 8px; overflow: hidden; text-overflow: ellipsis; }
+        .site-footer { margin-top:auto; padding:12px 0 10px; font-size:13px; text-align:center; color: var(--muted); border-top:1px solid var(--panel-border); letter-spacing:0.5px; }
+        .site-footer .partner-link { color: var(--link); font-weight:600; text-decoration:none; position:relative; padding:0 4px; }
+        .site-footer .partner-link::after { content:''; position:absolute; left:0; bottom:-3px; width:100%; height:2px; background:linear-gradient(90deg,#66a6ff,#89f7fe); transform:scaleX(0); transform-origin:left; transition:transform .35s ease; border-radius:2px; }
+        .site-footer .partner-link:hover::after { transform:scaleX(1); }
+        body.dark-mode .site-footer .partner-link::after, html.dark-mode .site-footer .partner-link::after { background:linear-gradient(90deg,#4e8df2,#5bd4e5); }
+        body.dark-mode .site-footer { color: var(--muted); }
     </style>
 </head>
 <body class="loading">
@@ -262,6 +268,8 @@
             <pre id="output">点击运行来执行代码</pre>
         </div>
     </div>
+    <!-- Friend link footer inside main container for proper layout -->
+    <footer class="site-footer" role="contentinfo" style="flex:0 0 auto;">本站由 <a class="partner-link" href="https://app.rainyun.com/" target="_blank" rel="noopener noreferrer" title="雨云 - 云服务器与算力服务">雨云</a> 提供计算服务</footer>
 </div>
 <div class="modal" id="share-modal" role="dialog" aria-modal="true" aria-labelledby="share-modal-title">
     <div class="modal-content">
@@ -1343,7 +1351,7 @@
                         } else if (/\.(ya?ml)$/.test(p)){
                             try{ const keys = Array.from(content.matchAll(/^([A-Za-z0-9_-]+):\s*/gm)).map(m=>m[1]).slice(0,12); const u=Array.from(new Set(keys)); csvStatsEl.textContent = u.length? `顶层键 ${u.length} 个 · ${u.join(', ')}` : 'YAML 文档'; }catch{ csvStatsEl.textContent='YAML 文档'; }
                         } else if (/\.(html?)$/.test(p)){
-                            try{ const m = content.match(/<title[^>]*>([\s\S]*?)<\/title>/i); const title=(m?m[1].replace(/\s+/g,' ').trim():''); const hCount=(content.match(/<h[1-6][^>]*>/gi)||[]).length; csvStatsEl.textContent = `HTML${title?` · 标题: ${title}`:''} · 头部标签: ${hCount}`; }catch{ csvStatsEl.textContent='HTML 文档'; }
+                            try{ const m = content.match(/<title[^>]*>([\s\S]*?)<\/title>/i); const title=(m?m[1].replace(/\s+/g,' ').trim():''); const hCount=(content.match(/<h[1-6][^>]*>/gi)||[]).length; csvStatsEl.textContent = 'HTML' + (title ? ' · 标题: ' + title : '') + ' · 头部标签: ' + hCount; }catch{ csvStatsEl.textContent='HTML 文档'; }
                         } else { csvStatsEl.textContent=''; }
                     }
                     if (csvToggleBtn) csvToggleBtn.style.display='none';
@@ -1537,7 +1545,7 @@
                 btn.addEventListener('mouseenter', ()=>choose(btn));
                 btn.addEventListener('focus', ()=>choose(btn));
             });
-            // 监听窗口变化，重新评估
+            // 监听窗口���化，重新评估
             window.addEventListener('resize', ()=>{ buttons.forEach(choose); });
         }
         setupTemplateSelector(selector){ if(!selector) return; selector.innerHTML=''; const def=document.createElement('option'); def.textContent='— 从这里选择一个代码示例 —'; def.value=''; def.selected=true; selector.appendChild(def); if(typeof codeTemplates==='undefined'){ console.warn('codeTemplates is not loaded'); return; } if(!codeTemplates['Pandas (DataFrame)']){ codeTemplates['Pandas (DataFrame)'] = `import pandas as pd\n\ndata = { 'A':[1,2,3], 'B':['x','y','z'] }\n\ndf = pd.DataFrame(data)\nprint(df)\n# 另起一行，输入 'df.' 测试实例补全`; } if(!codeTemplates['Pandas (本地CSV)']){ codeTemplates['Pandas (本地CSV)'] = `import pandas as pd\n# 示例数据已挂载到 /data 目录\n# 首次加载可能稍慢，请耐心等待\n\ndf = pd.read_csv('/data/boston_housing.csv')\nprint(df.head())\n# 另起一行，输入 'df.' 查看 DataFrame 补全`; } for(const key in codeTemplates){ const opt=document.createElement('option'); opt.value=key; opt.textContent=key; selector.appendChild(opt); } selector.addEventListener('change',(ev)=>{ const k=ev.target.value; if(!k){ this.editor.setValue(''); return; } if(codeTemplates[k]){ this.editor.setValue(codeTemplates[k]); Notification.show(`📚 已加载示例: ${k}`,'success'); try{ const url=new URL(window.location); url.searchParams.set('template',k); url.searchParams.delete('code'); window.history.pushState({},'',url); }catch(e){ console.warn('update URL failed',e);} } }); }
