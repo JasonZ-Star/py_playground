@@ -261,6 +261,9 @@
         .site-footer .partner-link:hover::after { transform:scaleX(1); }
         body.dark-mode .site-footer .partner-link::after, html.dark-mode .site-footer .partner-link::after { background:linear-gradient(90deg,#4e8df2,#5bd4e5); }
         body.dark-mode .site-footer { color: var(--muted); }
+        /* Plot gallery for matplotlib outputs */
+        .plot-gallery { margin-top: 10px; }
+        .plot-gallery img { display:block; max-width:100%; height:auto; border:1px solid var(--panel-border); border-radius:6px; background: var(--panel-bg); box-shadow: 0 2px 6px var(--shadow); margin:8px 0; }
     </style>
 </head>
 <body class="loading">
@@ -935,7 +938,7 @@
             ];
             for(const re of bannedPatterns){ if(re.test(code)) throw new Error('⚠️ 不允许使用高危 API 或模块'); }
         }
-        async execute(code){ this.validateCode(code); const start=Date.now(); const controller=this.workerClient.request('execute',{ code }); const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error(`执行超时 (>${CONFIG.RUNTIME.executionTimeoutMs/1000}秒)`)), CONFIG.RUNTIME.executionTimeoutMs)); try{ const resp=await Promise.race([controller, timeout]); if(resp && resp.success){ return { success:true, output: resp.output||'(无输出)', time: resp.time || (((Date.now()-start)/1000).toFixed(3)) }; } const msg=(resp&&resp.output)||(resp&&resp.error)||'执行失败'; return { success:false, output:`❌ 错误:\n${msg}`, time: resp?.time || (((Date.now()-start)/1000).toFixed(3)), line: resp?.line ?? null, col: resp?.col ?? null }; } catch(e){ return { success:false, output:`❌ 错误:\n${e.message}`, time: ((Date.now()-start)/1000).toFixed(3) }; } }
+        async execute(code){ this.validateCode(code); const start=Date.now(); const controller=this.workerClient.request('execute',{ code }); const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error(`执行超时 (>${CONFIG.RUNTIME.executionTimeoutMs/1000}秒)`)), CONFIG.RUNTIME.executionTimeoutMs)); try{ const resp=await Promise.race([controller, timeout]); if(resp && resp.success){ return { success:true, output: resp.output||'(无输出)', time: resp.time || (((Date.now()-start)/1000).toFixed(3)), images: Array.isArray(resp.images)? resp.images: [] }; } const msg=(resp&&resp.output)||(resp&&resp.error)||'执行失败'; return { success:false, output:`❌ 错误:\n${msg}`, time: resp?.time || (((Date.now()-start)/1000).toFixed(3)), line: resp?.line ?? null, col: resp?.col ?? null }; } catch(e){ return { success:false, output:`❌ 错误:\n${e.message}`, time: ((Date.now()-start)/1000).toFixed(3) }; } }
     }
 
     class PythonREPL {
@@ -1589,7 +1592,32 @@
             // 监听窗口���化，重新评估
             window.addEventListener('resize', ()=>{ buttons.forEach(choose); });
         }
-        setupTemplateSelector(selector){ if(!selector) return; selector.innerHTML=''; const def=document.createElement('option'); def.textContent='— 从这里选择一个代码示例 —'; def.value=''; def.selected=true; selector.appendChild(def); if(typeof codeTemplates==='undefined'){ console.warn('codeTemplates is not loaded'); return; } if(!codeTemplates['Pandas (DataFrame)']){ codeTemplates['Pandas (DataFrame)'] = `import pandas as pd\n\ndata = { 'A':[1,2,3], 'B':['x','y','z'] }\n\ndf = pd.DataFrame(data)\nprint(df)\n# 另起一行，输入 'df.' 测试实例补全`; } if(!codeTemplates['Pandas (本地CSV)']){ codeTemplates['Pandas (本地CSV)'] = `import pandas as pd\n# 示例数据已挂载到 /data 目录\n# 首次加载可能稍慢，请耐心等待\n\ndf = pd.read_csv('/data/boston_housing.csv')\nprint(df.head())\n# 另起一行，输入 'df.' 查看 DataFrame 补全`; } for(const key in codeTemplates){ const opt=document.createElement('option'); opt.value=key; opt.textContent=key; selector.appendChild(opt); } selector.addEventListener('change',(ev)=>{ const k=ev.target.value; if(!k){ this.editor.setValue(''); return; } if(codeTemplates[k]){ this.editor.setValue(codeTemplates[k]); Notification.show(`📚 已加载示例: ${k}`,'success'); try{ const url=new URL(window.location); url.searchParams.set('template',k); url.searchParams.delete('code'); window.history.pushState({},'',url); }catch(e){ console.warn('update URL failed',e);} } }); }
+        setupTemplateSelector(selector){ if(!selector) return; selector.innerHTML=''; const def=document.createElement('option'); def.textContent='— 从这里选择一个代码示例 —'; def.value=''; def.selected=true; selector.appendChild(def); if(typeof codeTemplates==='undefined'){ console.warn('codeTemplates is not loaded'); return; } if(!codeTemplates['Pandas (DataFrame)']){ codeTemplates['Pandas (DataFrame)'] = `import pandas as pd
+
+data = { 'A':[1,2,3], 'B':['x','y','z'] }
+
+df = pd.DataFrame(data)
+print(df)
+# 另起一行，输入 'df.' 测试实例补全`; } if(!codeTemplates['Pandas (本地CSV)']){ codeTemplates['Pandas (本地CSV)'] = `import pandas as pd
+# 示例数据已挂载到 /data 目录
+# 首次加载可能稍慢，请耐心等待
+
+df = pd.read_csv('/data/boston_housing.csv')
+print(df.head())
+# 另起一行，输入 'df.' 查看 DataFrame 补全`; } if(!codeTemplates['Matplotlib (pyplot)']){ codeTemplates['Matplotlib (pyplot)'] = `import matplotlib.pyplot as plt
+import numpy as np
+
+x = np.linspace(0, 2*np.pi, 400)
+y = np.sin(x**2)
+
+plt.figure(figsize=(6,3))
+plt.plot(x, y, label='sin(x^2)')
+plt.title('Demo: Matplotlib in Pyodide')
+plt.legend()
+plt.tight_layout()
+# 不需要 plt.show()，系统会自动捕获图像并显示
+`; }
+            for(const key in codeTemplates){ const opt=document.createElement('option'); opt.value=key; opt.textContent=key; selector.appendChild(opt); } selector.addEventListener('change',(ev)=>{ const k=ev.target.value; if(!k){ this.editor.setValue(''); return; } if(codeTemplates[k]){ this.editor.setValue(codeTemplates[k]); Notification.show(`📚 已加载示例: ${k}`,'success'); try{ const url=new URL(window.location); url.searchParams.set('template',k); url.searchParams.delete('code'); window.history.pushState({},'',url); }catch(e){ console.warn('update URL failed',e);} } }); }
         async stop(){ if(this.workerClient && this.workerClient.interrupt && this.workerClient.interrupt()){ Notification.show('⏹️ 已请求停止（将触发 KeyboardInterrupt）','warning'); return; } try{ await this.workerClient.restart(); Notification.show('⏹️ 已重启后台以停止任务','warning'); }catch(e){ Notification.show('❌ 停止失败：'+(e.message||e),'error'); } }
         async runCode(){ const runButton=document.getElementById('run-button'); const outputElement=document.getElementById('output'); const execTimeElement=document.getElementById('exec-time'); const status=document.querySelector('.status-indicator'); const jumpError=document.getElementById('jump-error');
             if(!this.workerClient||!this.editor){ Notification.show('⚠️ 环境未就绪','error'); return; }
@@ -1600,7 +1628,20 @@
             runButton.disabled=true; runButton.textContent='⏳ 运行中...'; status.className='status-indicator status-running'; outputElement.textContent='🚀 正在执行代码...';
             try{ const code=this.editor.getValue(); const pkgs=await this.packageManager.findNewPackages(code); if(pkgs.size>0){ outputElement.textContent=`🔔 安装模块: ${Array.from(pkgs).join(', ')}...`; await this.packageManager.installPackages(pkgs,false); }
                 const result=await this.codeExecutor.execute(code);
-                if(result.success){ status.className='status-indicator status-success'; outputElement.textContent=result.output; execTimeElement.textContent=`✅ 执行完成 (${result.time}s)`;
+                if(result.success){ status.className='status-indicator status-success';
+                    // 先渲染文本输出
+                    outputElement.textContent=result.output;
+                    // 再渲染图像（若有）
+                    try{
+                        if(Array.isArray(result.images) && result.images.length){
+                            const wrap = document.createElement('div');
+                            wrap.className = 'plot-gallery';
+                            result.images.forEach((src, idx)=>{ const img=new Image(); img.src=src; img.alt = `plot-${idx+1}`; wrap.appendChild(img); });
+                            outputElement.appendChild(document.createTextNode('\n'));
+                            outputElement.appendChild(wrap);
+                        }
+                    }catch{}
+                    execTimeElement.textContent=`✅ 执行完成 (${result.time}s)`;
                     // Ensure markers are cleared after success
                     try{ const model=this.editor?.editor?.getModel && this.editor.editor.getModel(); if(model && this.monaco?.editor?.setModelMarkers){ this.monaco.editor.setModelMarkers(model,'py',[]); } }catch{}
                     Notification.show('✅ 代码执行成功','success',2000);
