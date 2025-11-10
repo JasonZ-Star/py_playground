@@ -119,8 +119,49 @@
         .editor-panel { flex-basis: 48%; }
         .output-panel { flex-basis: 52%; }
         .template-selector-wrapper { margin-bottom: 15px; display: flex; gap: 10px; align-items: center; }
-        .template-selector-wrapper label { white-space: nowrap; font-weight: 500; }
-        #template-selector { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--panel-border); font-size: 14px; background: var(--panel-bg); color: var(--fg); }
+        /* Enhanced Template Selector (progressive) */
+        .template-selector-wrapper { position: relative; }
+        .template-selector-wrapper.floating-active label { transform: translateY(-12px) scale(.85); opacity:.85; }
+        .template-selector-wrapper label { transition: all .25s ease; transform-origin:left top; }
+        #template-selector.enhanced { background-clip: padding-box; }
+        .ts-panel { position:absolute; left:0; top:100%; width:100%; max-height:340px; overflow:auto; border:1px solid var(--panel-border); background:var(--panel-bg); border-radius:12px; margin-top:6px; box-shadow:0 10px 30px rgba(0,0,0,.12); padding:8px 0; z-index:1200; display:none; backdrop-filter:blur(4px); }
+        body.dark-mode .ts-panel, html.dark-mode .ts-panel { box-shadow:0 10px 30px rgba(0,0,0,.55); }
+        .ts-panel.open { display:block; animation:tsFade .18s ease; }
+        @keyframes tsFade { from{opacity:0; transform:translateY(-6px);} to{opacity:1; transform:translateY(0);} }
+        .ts-search-wrap { padding:0 12px 6px; }
+        .ts-search { width:100%; padding:8px 10px; font-size:13px; border:1px solid var(--panel-border); background:var(--panel-bg); color:var(--fg); border-radius:8px; outline:none; transition:border-color .2s, box-shadow .2s; }
+        .ts-search:focus { border-color:color-mix(in srgb,var(--link) 60%, var(--panel-border)); box-shadow:0 0 0 3px color-mix(in srgb,var(--link) 25%, transparent); }
+        .ts-options { list-style:none; margin:0; padding:0; }
+        .ts-option { padding:7px 14px; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:6px; line-height:1.3; transition:background .18s, color .18s; }
+        .ts-option[data-selected="true"] { background:linear-gradient(90deg, color-mix(in srgb,var(--link) 14%, var(--panel-bg)), transparent); font-weight:600; }
+        .ts-option:hover, .ts-option:focus { background:color-mix(in srgb,var(--link) 18%, var(--panel-bg)); color:var(--fg); outline:none; }
+        body.dark-mode .ts-option:hover { background:color-mix(in srgb,var(--link) 28%, var(--panel-bg)); }
+        .ts-empty { padding:10px 16px; font-size:12px; color:var(--muted); }
+        .ts-footer { padding:6px 12px 4px; display:flex; justify-content:space-between; gap:8px; }
+        .ts-footer button { flex:1; font-size:12px; padding:6px 10px; border-radius:6px; border:1px solid var(--panel-border); background:var(--panel-bg); color:var(--fg); cursor:pointer; }
+        .ts-footer button:hover { background:color-mix(in srgb,var(--link) 18%, var(--panel-bg)); }
+        .ts-option mark { background:transparent; color:var(--link); font-weight:600; }
+        /* Compact size variant */
+        .template-selector-wrapper.compact #template-selector { padding:8px 38px 8px 10px; font-size:13px; }
+        .template-selector-wrapper.compact .ts-option { padding:6px 12px; }
+        #template-selector { flex: 1; padding: 10px 42px 10px 12px; border-radius: 10px; border: 1px solid var(--panel-border); font-size: 14px; background-color: var(--panel-bg); color: var(--fg); outline: none; cursor: pointer; transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; -webkit-appearance: none; appearance: none; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        #template-selector:hover { border-color: color-mix(in srgb, var(--link) 35%, var(--panel-border)); }
+        #template-selector:focus, #template-selector:focus-visible { border-color: color-mix(in srgb, var(--link) 55%, var(--panel-border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--link) 22%, transparent); }
+        /* Custom chevron arrow using layered gradients (works in light/dark) */
+        #template-selector { background-image:
+            linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+            linear-gradient(135deg, var(--muted) 50%, transparent 50%),
+            linear-gradient(to right, var(--panel-border), var(--panel-border));
+          background-position:
+            calc(100% - 20px) 50%,
+            calc(100% - 14px) 50%,
+            calc(100% - 32px) 50%;
+          background-size: 6px 6px, 6px 6px, 1px 60%;
+          background-repeat: no-repeat; }
+        /* High-contrast for dark mode hover/focus still uses var(--muted) */
+        body.dark-mode #template-selector, html.dark-mode #template-selector { box-shadow: 0 2px 10px rgba(0,0,0,0.35); }
+        /* Reduce shadow on touch devices */
+        @media (hover: none) { #template-selector { box-shadow: none; } }
         #monaco-container { flex: 1; min-height: 150px; border: 1px solid var(--panel-border); border-radius: 6px; overflow: hidden; margin: 10px 0; background: var(--panel-bg); }
         .button-wrapper { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
         .action-button { flex: 1; min-width: 100px; max-width: 150px; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; white-space: nowrap; }
@@ -1035,7 +1076,7 @@
             this.updateLoadingText('加载完成!');
             this.updateProgress('');
             document.body.classList.remove('loading');
-            setTimeout(()=> document.getElementById('loader-overlay').style.display='none', 300);
+            setTimeout(() => document.getElementById('loader-overlay').style.display='none', 300);
         } catch(err) {
             console.error('Initialization failed:',err);
             document.getElementById('output').textContent=`❌ 加载失败: ${err.message||err.toString()}`;
@@ -1677,7 +1718,7 @@
         // Legacy: base64 code param
         if(!codeLoadedFromUrl && urlParams.has('code')){ try{ let raw=urlParams.get('code')||''; let b64; try{ b64=decodeURIComponent(raw); }catch{ b64=raw; } b64=b64.replace(/-/g,'+').replace(/_/g,'/'); while(b64.length%4) b64+='='; const bytes=atob(b64); const decoded=decodeURIComponent(escape(bytes)); StorageManager.saveCode(decoded); codeLoadedFromUrl=true; }catch(e){ console.warn('Failed to decode shared code:',e);} }
 
-        // 支持 ?template=xxx：若没有其它代码载入，则按模板载入代码；否则仅反映选择
+        // 支持 ?template=xxx：若没有其它代码��入，则按模板载入代码；否则仅反映选择
         try{
             if(urlParams.has('template')){
                 const t = urlParams.get('template');
