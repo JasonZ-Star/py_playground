@@ -76,7 +76,7 @@ npm run start
 ## 七、性能与体验优化
 
 - **浏览器原生 color-scheme**：通过 `<meta name="color-scheme">` 与 `color-scheme: light/dark` CSS 声明，让滚动条、表单控件、链接等系统 UI 元素自动跟随主题，避免硬编码。
-- **本地 Pyodide 资源优先**：`<link rel="preload">` 预取 `python_stdlib.zip` 与 `pyodide.asm.wasm` 关键资源，缩短首次加载时间。
+- **本地 Pyodide 资源优先**：通过 `preconnect` + `dns-prefetch` 提前解析 CDN 域名；关键资源（`python_stdlib.zip`、`pyodide.asm.wasm`）由 Web Worker 内部 `fetch()` 加载，浏览器 HTTP 缓存会自动复用，避免重复下载。
 - **CSS 变量回退**：`local-fonts.css` 使用 `local()` 优先系统字体，避免缺失 woff2 时 FOIT（无样式文字闪烁）。
 - **Warmed Jedi Cache**：`warmupCache` Set 避免重复预热同一模块，按"运行"时只预热本次新增包。
 - **SEO / PWA**：补全 `og:*` / `twitter:*` / `theme-color` / `site.webmanifest`，支持添加到主屏幕、社交分享卡片。

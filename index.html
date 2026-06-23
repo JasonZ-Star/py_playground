@@ -27,13 +27,11 @@
     <meta name="twitter:title" content="枫下代码 - Python在线 Playground">
     <meta name="twitter:description" content="基于 Pyodide + Monaco 的纯静态 Python 在线运行环境。">
 
-    <!-- 预连接 / DNS 预取 / 预取关键 Pyodide 资源 -->
+    <!-- 预连接 / DNS 预取（Pyodide 资源由 Worker fetch 加载，浏览器 HTTP 缓存会自动复用） -->
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
     <link rel="preconnect" href="https://unpkg.com" crossorigin>
     <link rel="dns-prefetch" href="//unpkg.com">
-    <link rel="preload" href="pyodide/python_stdlib.zip" as="fetch" crossorigin>
-    <link rel="preload" href="pyodide/pyodide.asm.wasm" as="fetch" crossorigin>
 
     <!-- 本地字体（含中英文回退） -->
     <link rel="stylesheet" href="fonts/local-fonts.css">
