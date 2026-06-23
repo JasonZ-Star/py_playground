@@ -40,8 +40,8 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c6dd8'/%3E%3Cstop offset='1' stop-color='%233342b7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Ctext x='32' y='44' font-family='ui-sans-serif,system-ui' font-size='34' font-weight='800' text-anchor='middle' fill='white'%3E%E6%9F%9F%3C/text%3E%3C/svg%3E">
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c6dd8'/%3E%3Cstop offset='1' stop-color='%233342b7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='180' height='180' rx='40' fill='url(%23g)'/%3E%3Ctext x='90' y='124' font-family='ui-sans-serif,system-ui' font-size='100' font-weight='800' text-anchor='middle' fill='white'%3E%E6%9F%9F%3C/text%3E%3C/svg%3E">
 
-    <!-- Content-Security-Policy: 收紧到最小权限集，同时满足 Pyodide (wasm-unsafe-eval, blob workers, CDN) -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data:; worker-src 'self' blob:; child-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://cdn.bootcdn.net https://fastly.jsdelivr.net https://cdnjs.cloudflare.com blob: data:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';">
+    <!-- Content-Security-Policy: 收紧到最小权限集，同时满足 Pyodide + Monaco 动态脚本注入 -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdn.jsdelivr.net https://unpkg.com https://cdn.bootcdn.net https://fastly.jsdelivr.net; worker-src 'self' blob:; child-src 'self' blob:; style-src 'self' 'unsafe-inline' https://cdn.bootcdn.net https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; font-src 'self' data: https://cdn.jsdelivr.net https://cdn.bootcdn.net; connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://cdn.bootcdn.net https://fastly.jsdelivr.net https://cdnjs.cloudflare.com blob: data:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';">
 
 
     <style>
@@ -1272,11 +1272,19 @@
             if (typeof require === 'undefined') {
                 try { await ensureAmdLoader(); } catch (e) { throw new Error('Monaco 加载器不可用'); }
             }
+            // 安全字符串化任意错误对象 (Event/Error/string)
+            const errToString = (e) => {
+                if (!e) return 'unknown';
+                if (e instanceof Error) return e.message || e.name || 'Error';
+                if (e && e.message) return String(e.message);
+                if (e && e.type) return `Event:${e.type}`;
+                try { return String(e); } catch { return Object.prototype.toString.call(e); }
+            };
             let lastErr;
             for (const base of bases) {
-                try { await tryLoad(base); return; } catch (e) { lastErr = e; console.warn('Monaco load failed from', base, e?.message || e); }
+                try { await tryLoad(base); return; } catch (e) { lastErr = e; console.warn('Monaco load failed from', base, errToString(e)); }
             }
-            throw new Error('Monaco 加载失败（CDN/本地均不可用）: ' + (lastErr?.message || lastErr));
+            throw new Error('Monaco 加载失败（CDN/本地均不可用）: ' + errToString(lastErr));
         }
         async main(){ try {
             this.updateLoadingText('正在初始化后台环境…');
