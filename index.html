@@ -40,6 +40,10 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c6dd8'/%3E%3Cstop offset='1' stop-color='%233342b7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Ctext x='32' y='44' font-family='ui-sans-serif,system-ui' font-size='34' font-weight='800' text-anchor='middle' fill='white'%3E%E6%9F%9F%3C/text%3E%3C/svg%3E">
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c6dd8'/%3E%3Cstop offset='1' stop-color='%233342b7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='180' height='180' rx='40' fill='url(%23g)'/%3E%3Ctext x='90' y='124' font-family='ui-sans-serif,system-ui' font-size='100' font-weight='800' text-anchor='middle' fill='white'%3E%E6%9F%9F%3C/text%3E%3C/svg%3E">
 
+    <!-- Content-Security-Policy: 收紧到最小权限集，同时满足 Pyodide (wasm-unsafe-eval, blob workers, CDN) -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data:; worker-src 'self' blob:; child-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://cdn.bootcdn.net https://fastly.jsdelivr.net https://cdnjs.cloudflare.com blob: data:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';">
+
+
     <style>
         /* 浏览器原生 color-scheme — 让滚动条/表单/链接自动跟随主题 */
         :root { color-scheme: light; }
@@ -373,6 +377,17 @@
         /* Zoom hint */
         .zoom-hint { position: fixed; right: 20px; bottom: 80px; background: var(--panel-bg); color: var(--fg); border:1px solid var(--panel-border); padding: 4px 8px; border-radius: var(--radius-sm); font-size: 11px; z-index: 1200; opacity: 0; transform: translateY(8px); transition: opacity var(--transition-fast), transform var(--transition-fast); }
         .zoom-hint.show { opacity: .9; transform: translateY(0); }
+
+        /* ===== prefers-reduced-motion — 尊重系统级"减少动效"偏好 ===== */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+            .loader-ring, .status-running, .notification, .modal.active { animation: none !important; }
+        }
     </style>
 </head>
 <body class="loading">
@@ -976,7 +991,73 @@
         request(action,payload={}){ return new Promise((res,rej)=>{ if(!this.worker) return rej(new Error('Worker not initialized')); const id=this.reqId++; this.pending.set(id,(resp)=>res(resp)); this.worker.postMessage({ id,type:'request',action,payload }); setTimeout(()=>{ if(this.pending.has(id)){ this.pending.delete(id); rej(new Error(`Worker request '${action}' timeout`)); } }, Math.max(CONFIG.COMPLETION.requestTimeoutMs, CONFIG.RUNTIME.executionTimeoutMs)); }); }
     }
 
-    class Notification { static show(msg,type='info',duration=3000){ const n=document.createElement('div'); n.className=`notification ${type}`; n.textContent=msg; document.body.appendChild(n); setTimeout(()=>{ n.style.animation='slideOut .2s ease-out forwards'; setTimeout(()=>n.remove(),200); },duration); } }
+    class Notification {
+        // 通知去重：相同内容在 cooldownMs 内只弹一次
+        static _recent = new Map(); // msg -> { ts, el }
+        static _cooldownMs = 1800;
+        static _maxVisible = 3;     // 同时最多显示 3 个
+        static _container = null;
+        static _ensureContainer(){
+            if (this._container && document.body.contains(this._container)) return this._container;
+            let el = document.getElementById('notification-container');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'notification-container';
+                el.style.cssText = 'position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column-reverse;gap:8px;z-index:1000;pointer-events:none;';
+                document.body.appendChild(el);
+            }
+            this._container = el;
+            return el;
+        }
+        static show(msg, type='info', duration=3000){
+            try {
+                const key = String(msg || '');
+                if (!key) return;
+                const now = Date.now();
+                const last = this._recent.get(key);
+                if (last && (now - last.ts) < this._cooldownMs) {
+                    // 同内容：刷新计时并保持原 element
+                    if (last.el && last.el.parentNode) {
+                        last.ts = now;
+                        // 重置 hide 计时
+                        try { clearTimeout(last._hideTimer); } catch {}
+                        last._hideTimer = setTimeout(() => this._dismiss(last.el), duration);
+                    }
+                    return;
+                }
+                const container = this._ensureContainer();
+                // 超过最大数量时移除最早的
+                while (container.children.length >= this._maxVisible) {
+                    this._dismiss(container.firstElementChild);
+                }
+                const n = document.createElement('div');
+                n.className = `notification ${type}`;
+                n.textContent = key;
+                n.style.cssText = 'pointer-events:auto;';
+                container.appendChild(n);
+                const hideTimer = setTimeout(() => this._dismiss(n), duration);
+                this._recent.set(key, { ts: now, el: n, _hideTimer: hideTimer });
+                // 异步清理过期的 _recent 记录
+                setTimeout(() => { const cur = this._recent.get(key); if (cur && cur.el === n) this._recent.delete(key); }, duration + 2500);
+            } catch {}
+        }
+        static _dismiss(el){
+            if (!el || !el.parentNode) return;
+            try {
+                el.style.animation = 'slideOut .2s ease-out forwards';
+                setTimeout(() => { try { el.remove(); } catch {} }, 200);
+            } catch {}
+        }
+        // 清空所有通知（用于卸载/重置场景）
+        static clearAll(){
+            try {
+                if (this._container) {
+                    while (this._container.firstChild) this._container.firstChild.remove();
+                }
+                this._recent.clear();
+            } catch {}
+        }
+    }
 
     // New: simple floating zoom hint switched to Notification style
     class ZoomHint {
@@ -2154,7 +2235,50 @@
                 if(typeof renderOptions === 'function') renderOptions(search.value);
             };
         }
-        async stop(){ if(this.workerClient && this.workerClient.interrupt && this.workerClient.interrupt()){ Notification.show('已请求停止（将触发 KeyboardInterrupt）','warning'); return; } try{ await this.workerClient.restart(); Notification.show('已重启后台以停止任务','warning'); }catch(e){ Notification.show('停止失败：'+(e.message||e),'error'); } }
+        async stop(){
+            // 1) 优先尝试 SAB 中断（轻量、不重启 worker）
+            if(this.workerClient && this.workerClient.interrupt && this.workerClient.interrupt()){
+                Notification.show('已请求停止（将触发 KeyboardInterrupt）','warning',1800);
+                // 兜底：若 5s 内未结束，强制重启 worker
+                const fallbackTimer = setTimeout(() => {
+                    try {
+                        if (document.getElementById('run-button')?.disabled) {
+                            this.workerClient && this.workerClient.restart && this.workerClient.restart()
+                                .then(() => Notification.show('已强制重启后台以停止任务','warning'))
+                                .catch(() => {});
+                        }
+                    } catch {}
+                }, 5000);
+                // 监听 finally 释放兜底定时器（如果 runCode 结束）
+                try {
+                    const runBtn = document.getElementById('run-button');
+                    if (runBtn) {
+                        const observer = new MutationObserver(() => {
+                            if (!runBtn.disabled) {
+                                clearTimeout(fallbackTimer);
+                                observer.disconnect();
+                            }
+                        });
+                        observer.observe(runBtn, { attributes: true, attributeFilter: ['disabled'] });
+                    }
+                } catch {}
+                return;
+            }
+            // 2) 不支持 SAB：直接重启 worker
+            try {
+                await this.workerClient.restart();
+                // 恢复 UI 状态（重启后 runCode 不会自动 finally）
+                const runBtn = document.getElementById('run-button');
+                if (runBtn) { runBtn.disabled = false; runBtn.textContent = '运行'; }
+                const status = document.querySelector('.status-indicator');
+                if (status) status.className = 'status-indicator status-idle';
+                const execTime = document.getElementById('exec-time');
+                if (execTime) execTime.textContent = '已停止';
+                Notification.show('已重启后台以停止任务','warning',1800);
+            } catch(e){
+                Notification.show('停止失败：'+(e.message||e),'error');
+            }
+        }
         async runCode(){ const runButton=document.getElementById('run-button'); const outputElement=document.getElementById('output'); const execTimeElement=document.getElementById('exec-time'); const status=document.querySelector('.status-indicator'); const jumpError=document.getElementById('jump-error');
             if(!this.workerClient||!this.editor){ Notification.show('环境未就绪','error'); return; }
             try{ if(this.editor?.editor && this.errorDecorations?.length){ this.errorDecorations=this.editor.editor.deltaDecorations(this.errorDecorations,[]); } this.lastErrorLine=null; jumpError.style.display='none'; if(this.workerClient.interruptView){ Atomics.store(this.workerClient.interruptView,0,0); }
@@ -2505,6 +2629,29 @@ except Exception as e:
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW register failed:', err));
         }
+
+        // 页面卸载/隐藏时清理 Worker 与定时器，避免内存泄漏
+        const cleanup = () => {
+            try {
+                if (app && app.workerClient && app.workerClient.worker) {
+                    try { app.workerClient.worker.terminate(); } catch {}
+                    app.workerClient.worker = null;
+                }
+            } catch {}
+            try { if (app && app._watchdogTimer) clearTimeout(app._watchdogTimer); } catch {}
+        };
+        // 页面真正关闭/刷新时清理
+        window.addEventListener('pagehide', cleanup);
+        // 移动端 Safari 切换标签页时可能不会触发 pagehide，visibilitychange 作为兜底
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') {
+                // 仅清理"未在运行"状态下的 worker；用户正在调试时不要清理
+                try {
+                    const isRunning = app && app.workerClient && app.workerClient.pending && app.workerClient.pending.size > 0;
+                    if (!isRunning) cleanup();
+                } catch {}
+            }
+        });
     });
 </script>
 </body>

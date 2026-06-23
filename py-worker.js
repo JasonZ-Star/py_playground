@@ -437,9 +437,8 @@ async function installPackages(payload) {
         }
 
         // 仅预热本次新增的包（已预热的通过 warmupCache 内部短路）
-        for (const pkg of toInstall) {
-            await warmupCompletion(pkg);
-        }
+        // 并发执行（Promise.all）— 多包同时预热大幅缩短总耗时
+        await Promise.all(toInstall.map(pkg => warmupCompletion(pkg)));
 
         await pyodide.runPythonAsync(`
 try:
