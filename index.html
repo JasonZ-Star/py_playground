@@ -266,6 +266,11 @@
         .modal-footer .btn-primary:hover { background: var(--accent-light); border-color: var(--accent-light); }
         .modal-footer .btn-secondary { background: var(--btn-bg); color: var(--btn-fg); }
         .modal-footer .btn-secondary:hover { background: var(--accent-subtle); }
+        /* ===== Share Type Switch (长链/短链 切换按钮) ===== */
+        .share-type-btn:hover { background: var(--accent-subtle); border-color: var(--accent-light) !important; }
+        .share-type-btn.active { background: var(--fg); color: var(--bg); border-color: var(--fg) !important; }
+        .share-type-btn.active svg { color: var(--bg); }
+        .share-type-btn:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
         /* ===== Badge ===== */
         .badge { display:inline-block; padding:2px 8px; font-size:11px; color:var(--bg); background:var(--fg); border-radius:var(--radius-sm); margin-left:6px; font-weight:500; }
         .badge.hidden { display:none; }
@@ -406,7 +411,17 @@
         <div class="modal-body">
             <p>分享链接已复制到剪贴板:</p>
             <input type="text" id="share-url" readonly aria-label="分享链接" style="width: 100%; padding: 8px; border: 1px solid var(--panel-border); border-radius: 6px; font-family: monospace; font-size: 12px; background: var(--panel-bg); color: var(--fg);">
-            <p id="share-info" style="margin-top:8px;font-size:12px;color:var(--muted);"></p>
+            <div class="share-type-switch" id="share-type-switch" style="margin-top:10px;display:flex;gap:6px;">
+                <button type="button" id="share-type-long" class="share-type-btn" aria-label="切换到长链（跨设备可用）" style="flex:1;padding:6px 10px;border:1px solid var(--panel-border);border-radius:6px;background:var(--btn-bg);color:var(--fg);cursor:pointer;font-size:12px;font-weight:500;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .15s ease;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    长链 · 跨设备
+                </button>
+                <button type="button" id="share-type-short" class="share-type-btn" aria-label="切换到短链（仅同浏览器）" style="flex:1;padding:6px 10px;border:1px solid var(--panel-border);border-radius:6px;background:var(--btn-bg);color:var(--fg);cursor:pointer;font-size:12px;font-weight:500;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .15s ease;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    短链 · 同浏览器
+                </button>
+            </div>
+            <p id="share-info" style="margin-top:8px;font-size:12px;color:var(--muted);line-height:1.5;"></p>
         </div>
         <div class="modal-footer">
             <button class="btn-secondary" onclick="document.getElementById('share-modal').classList.remove('active')">关闭</button>
@@ -2210,43 +2225,107 @@ except Exception as e:
             try{ est = Math.round(this.editor?.editor?.getScrollTop()||0); esl = Math.round(this.editor?.editor?.getScrollLeft()||0); }catch{}
             try{ const out=document.getElementById('output'); ost = Math.round(out.scrollTop||0); }catch{}
             const payloadObj = { v:2, c: code, efs, ofs, th: theme, tpl: tpl||undefined, est, esl, ost };
-            // Strategy: try localStorage short-ID first (compact URL, 7-day expiry,
-            // same-browser). Fall back to LZString embedded URL (cross-device, longer).
-            const id = ShareStore.save(payloadObj);
-            let shareUrl, isLocalShare = false;
-            if(id){
-                isLocalShare = true;
-                const baseDir = new URL('./', window.location.href);
-                const hasSWController = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
-                shareUrl = hasSWController
-                    ? new URL('./s/' + id, baseDir).toString()
-                    : new URL('./share.html?p=' + encodeURIComponent(id), baseDir).toString();
+            const baseDir = new URL('./', window.location.href);
+            const hasSWController = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
+
+            // 1) 默认走 LZString 长链 — 跨设备/跨浏览器可用，永久有效
+            let longUrl = null;
+            try{
+                const compressed = window.LZString.compressToEncodedURIComponent(JSON.stringify(payloadObj));
+                if (compressed && compressed.length >= 2) {
+                    longUrl = hasSWController
+                        ? new URL('./s/' + compressed, baseDir).toString()
+                        : new URL('./share.html?p=' + encodeURIComponent(compressed), baseDir).toString();
+                }
+            }catch{}
+
+            // 2) short-ID 备选 — URL 更短，但仅限同浏览器，7 天过期
+            let shortUrl = null;
+            try{
+                const id = ShareStore.save(payloadObj);
+                if(id){
+                    shortUrl = hasSWController
+                        ? new URL('./s/' + id, baseDir).toString()
+                        : new URL('./share.html?p=' + encodeURIComponent(id), baseDir).toString();
+                }
+            }catch{}
+
+            // 浏览器对 URL 长度有 8KB 限制；超过则放弃 longUrl，避免被截断
+            const MAX_URL_LEN = 7800;
+            const longUsable = longUrl && longUrl.length <= MAX_URL_LEN;
+
+            let primaryUrl, primaryType, shortUsable;
+            if (longUsable) {
+                primaryUrl = longUrl;
+                primaryType = 'long';
+                shortUsable = !!shortUrl;
+            } else if (shortUrl) {
+                primaryUrl = shortUrl;
+                primaryType = 'short';
+                shortUsable = true;
             } else {
-                shareUrl = buildShortPermalink(payloadObj);
-                shareUrl = ensureValidShortUrl(shareUrl, payloadObj);
+                // 都失败：回退到普通 ?code= (base64)
+                primaryUrl = buildShortPermalink(payloadObj);
+                primaryUrl = ensureValidShortUrl(primaryUrl, payloadObj);
+                primaryType = 'legacy';
+                shortUsable = false;
             }
-            navigator.clipboard.writeText(shareUrl).then(()=>{
+
+            const copyAndShow = (url, type) => {
+                const safeCopy = () => {
+                    try { navigator.clipboard.writeText(url); }
+                    catch(e){
+                        try{
+                            const ta=document.createElement('textarea');
+                            ta.value=url; ta.style.position='fixed'; ta.style.opacity='0';
+                            document.body.appendChild(ta); ta.select();
+                            try{ document.execCommand('copy'); }catch{}
+                            document.body.removeChild(ta);
+                        }catch{}
+                    }
+                };
+                safeCopy();
+
                 const modal=document.getElementById('share-modal');
                 const input=document.getElementById('share-url');
-                input.value=shareUrl;
-                const openBtn=document.getElementById('open-share-url-button');
-                if(openBtn){ openBtn.onclick=()=>{ const url=input.value||shareUrl; window.open(url,'_blank'); } }
-                // Show share type / expiry info
                 const infoEl=document.getElementById('share-info');
-                if(infoEl){
-                    if(isLocalShare){
-                        const expiryDate=new Date(Date.now()+ShareStore.EXPIRE_MS);
-                        const dateStr=expiryDate.toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
-                        infoEl.textContent=`有效期至 ${dateStr}（仅限当前浏览器），跨设备请使用下载/复制代码`;
-                        infoEl.style.color='var(--muted)';
+                const openBtn=document.getElementById('open-share-url-button');
+                const longBtn=document.getElementById('share-type-long');
+                const shortBtn=document.getElementById('share-type-short');
+
+                input.value = url;
+                if (openBtn) openBtn.onclick = () => { const u = input.value || url; window.open(u, '_blank'); };
+
+                // 切换按钮可见性 & 状态
+                if (longBtn) longBtn.style.display = longUsable ? '' : 'none';
+                if (shortBtn) shortBtn.style.display = shortUsable ? '' : 'none';
+                if (longBtn) longBtn.classList.toggle('active', type === 'long');
+                if (shortBtn) shortBtn.classList.toggle('active', type === 'short');
+
+                // 点击切换类型
+                if (longBtn) longBtn.onclick = () => { if (longUrl) copyAndShow(longUrl, 'long'); };
+                if (shortBtn) shortBtn.onclick = () => { if (shortUrl) copyAndShow(shortUrl, 'short'); };
+
+                if (infoEl){
+                    if (type === 'long') {
+                        infoEl.innerHTML = `<strong style="color:var(--accent);">跨设备可用</strong> · 永久有效 · URL 含完整代码（${url.length} 字符）`;
+                        infoEl.style.color = 'var(--muted)';
+                    } else if (type === 'short') {
+                        const expiryDate = new Date(Date.now() + ShareStore.EXPIRE_MS);
+                        const dateStr = expiryDate.toLocaleDateString('zh-CN', {month:'long', day:'numeric'});
+                        infoEl.innerHTML = `<strong style="color:#f59e0b;">仅限当前浏览器</strong> · 7 天有效期至 ${dateStr} · 跨设备请使用「下载/复制代码」`;
+                        infoEl.style.color = 'var(--muted)';
                     } else {
-                        infoEl.textContent='链接永久有效（跨设备可用，URL较长）';
-                        infoEl.style.color='var(--muted)';
+                        infoEl.textContent = '链接生成失败，请使用「下载/复制代码」';
+                        infoEl.style.color = 'var(--muted)';
                     }
                 }
+
                 modal.classList.add('active');
                 Notification.show('分享链接已复制到剪贴板','success');
-            }).catch(()=>{ Notification.show('复制失败，请手动复制','error'); });
+            };
+
+            copyAndShow(primaryUrl, primaryType);
         }
         downloadCode(){
             const code=this.editor.getValue();
