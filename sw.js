@@ -1,12 +1,13 @@
 // Versioned Service Worker cache with dynamic version from package.json
 const CACHE_PREFIX = 'py-playground-v';
-let CURRENT_CACHE = CACHE_PREFIX + '0';
+let CURRENT_CACHE = CACHE_PREFIX + 'dev';
 // Only cache assets that actually exist in this project and use relative URLs for subpath deployments
 const CORE_ASSETS = [
     './',
     './index.html',
     './templates.js',
     './py-worker.js',
+    './styles.css',
     './fonts/local-fonts.css',
     './share.html',
     './404.html',
@@ -86,8 +87,14 @@ self.addEventListener('fetch', (event) => {
         event.respondWith((async () => {
             try {
                 const res = await fetch(req);
-                // If network ok, return it
-                if (res && res.ok) return res;
+                // If network ok, update cache and return it
+                if (res && res.ok) {
+                    try {
+                        const cache = await caches.open(CURRENT_CACHE);
+                        await cache.put('./py-worker.js', res.clone());
+                    } catch {}
+                    return res;
+                }
                 // Fallback to cache when network gives non-ok
                 const cached = await caches.match(req) || await caches.match('./py-worker.js');
                 if (cached) return cached;

@@ -70,332 +70,15 @@
     <script src="templates.js" defer></script>
     <!-- Remove incorrect SRI on Monaco loader; loader is injected dynamically with fallback in loadMonaco() -->
     <!-- <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.min.js" defer integrity="..." crossorigin="anonymous"></script> -->
-    <style>
-        /* ===== Design System — 21st.dev / shadcn aesthetic ===== */
-        :root {
-            --bg: #ffffff;
-            --fg: #09090b;
-            --panel-bg: #ffffff;
-            --panel-border: #e4e4e7;
-            --muted: #71717a;
-            --output-bg: #f4f4f5;
-            --btn-bg: #ffffff;
-            --btn-fg: #09090b;
-            --scrollbar-bg: #f4f4f5;
-            --scrollbar-thumb: #d4d4d8;
-            --scrollbar-thumb-hover: #a1a1aa;
-            --link: #3b82f6;
-            --link-hover: #2563eb;
-            --accent: #18181b;
-            --accent-light: #3f3f46;
-            --accent-subtle: #f4f4f5;
-            --accent-muted: #e4e4e7;
-            --radius-sm: 6px;
-            --radius-md: 8px;
-            --radius-lg: 10px;
-            --radius-xl: 14px;
-            --radius-full: 9999px;
-            --transition-fast: 0.12s ease;
-            --transition-smooth: 0.2s ease;
-            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            --font-mono: 'JetBrains Mono', 'LXGW WenKai Screen', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-            --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
-        }
-        .dark-mode {
-            --bg: #09090b;
-            --fg: #fafafa;
-            --panel-bg: #09090b;
-            --panel-border: #27272a;
-            --muted: #a1a1aa;
-            --output-bg: #18181b;
-            --btn-bg: #18181b;
-            --btn-fg: #fafafa;
-            --scrollbar-bg: #18181b;
-            --scrollbar-thumb: #3f3f46;
-            --scrollbar-thumb-hover: #52525b;
-            --link: #60a5fa;
-            --link-hover: #93c5fd;
-            --accent: #fafafa;
-            --accent-light: #e4e4e7;
-            --accent-subtle: #18181b;
-            --accent-muted: #27272a;
-        }
-        * { box-sizing: border-box; }
-        html, body { height: 100%; }
-        body { font-family: var(--font-sans); margin: 0; overflow: hidden; background: var(--bg); color: var(--fg); }
-        /* ===== Loader ===== */
-        #loader-overlay { display: none; position: fixed; inset: 0; background: var(--bg); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; }
-        body.loading #loader-overlay { display: flex; }
-        body.loading #app-container { display: none; }
-        .loader-ring { width: 32px; height: 32px; border: 2px solid var(--panel-border); border-top-color: var(--fg); border-radius: 50%; animation: spin 0.6s linear infinite; }
-        @keyframes spin { to{transform:rotate(360deg)} }
-        #loading-text { margin-top: var(--sp-4); font-size: 13px; color: var(--fg); font-weight: 500; }
-        #loading-progress { margin-top: var(--sp-1); font-size: 11px; color: var(--muted); }
-        /* ===== App Container ===== */
-        #app-container { display: flex; flex-direction: column; height: 100%; padding: var(--sp-3) var(--sp-4); gap: var(--sp-3); }
-        /* ===== Header ===== */
-        header { display: flex; justify-content: space-between; align-items: center; padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-lg); background: var(--panel-bg); border: 1px solid var(--panel-border); }
-        h2 { margin: 0; color: var(--fg); font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
-        .header-actions { display: flex; gap: var(--sp-2); align-items: center; }
-        /* ===== Icon Buttons ===== */
-        .icon-button { position: relative; width: 34px; height: 34px; border: 1px solid var(--panel-border); border-radius: var(--radius-sm); background: var(--btn-bg); color: var(--btn-fg); cursor: pointer; font-size: 0; transition: background var(--transition-fast), border-color var(--transition-fast); display: flex; align-items: center; justify-content: center; }
-        .icon-button:hover { background: var(--accent-subtle); border-color: var(--accent-muted); }
-        .icon-button:active { background: var(--accent-muted); }
-        .icon-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-        .icon-button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
-        /* Tooltips */
-        .icon-button[data-tooltip]::after {
-            content: attr(data-tooltip);
-            position: absolute; left: 50%; white-space: nowrap; background: #18181b; color: #fafafa; font-size: 11px; padding: 3px 8px; border-radius: var(--radius-sm); opacity: 0; pointer-events: none; transition: opacity var(--transition-fast), transform var(--transition-fast); z-index: 100;
-        }
-        .dark-mode .icon-button[data-tooltip]::after { background: #27272a; }
-        .icon-button[data-tooltip][data-tooltip-pos="top"]::after { bottom: 100%; transform: translate(-50%, -6px); }
-        .icon-button:hover[data-tooltip][data-tooltip-pos="top"]::after,
-        .icon-button:focus-visible[data-tooltip][data-tooltip-pos="top"]::after { opacity: 0.95; transform: translate(-50%, -10px); }
-        .icon-button[data-tooltip][data-tooltip-pos="bottom"]::after { top: 100%; transform: translate(-50%, 6px); }
-        .icon-button:hover[data-tooltip][data-tooltip-pos="bottom"]::after,
-        .icon-button:focus-visible[data-tooltip][data-tooltip-pos="bottom"]::after { opacity: 0.95; transform: translate(-50%, 10px); }
-        /* ===== Playground ===== */
-        .playground-wrapper { display: flex; flex: 1; gap: var(--sp-3); overflow: hidden; }
-        /* ===== Panels ===== */
-        .panel { background: var(--panel-bg); padding: var(--sp-4); border-radius: var(--radius-lg); display: flex; flex-direction: column; width: 100%; border: 1px solid var(--panel-border); position: relative; overflow: hidden; }
-        .editor-panel { flex-basis: 48%; }
-        .output-panel { flex-basis: 52%; }
-        .editor-panel:focus-within { border-color: var(--muted); }
-        /* ===== Template Selector ===== */
-        .template-selector-wrapper { position: relative; margin-bottom: var(--sp-3); display: flex; gap: var(--sp-3); align-items: center; }
-        .template-selector-wrapper label { font-size: 13px; color: var(--muted); font-weight: 500; }
-        #template-selector { flex: 1; padding: 8px 36px 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--panel-border); font-size: 13px; font-weight: 500; background-color: var(--btn-bg); color: var(--fg); outline: none; cursor: pointer; transition: border-color var(--transition-fast); -webkit-appearance: none; appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
-        #template-selector:hover { border-color: var(--muted); }
-        #template-selector:focus, #template-selector:focus-visible { border-color: var(--fg); }
-        /* Template dropdown panel (custom) */
-        .ts-trigger { flex:1; padding:8px 36px 8px 12px; border-radius:var(--radius-sm); border:1px solid var(--panel-border); font-size:13px; font-weight:500; background-color:var(--btn-bg); color:var(--fg); outline:none; cursor:pointer; transition:border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast); text-align:left; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; position:relative; -webkit-appearance:none; appearance:none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; font-family: inherit; }
-        .ts-trigger:hover { border-color: var(--muted); }
-        .ts-trigger:focus, .ts-trigger:focus-visible { border-color: var(--fg); box-shadow: 0 0 0 3px var(--accent-subtle); }
-        .ts-trigger[data-open="true"] { border-color: var(--fg); box-shadow: 0 0 0 3px var(--accent-subtle); }
-        .ts-trigger .ts-trigger-placeholder { color: var(--muted); }
-        .template-selector-wrapper.compact .ts-trigger { padding:6px 34px 6px 10px; font-size:12px; }
-        #template-selector { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; display: none !important; visibility: hidden !important; pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important; }
-        .ts-panel { position:absolute; left:0; top:100%; width:100%; max-height:340px; overflow:auto; border:1px solid var(--panel-border); background:var(--panel-bg); border-radius:var(--radius-md); margin-top:6px; padding:8px 0; z-index:1200; display:none; box-shadow: 0 10px 30px -10px rgba(0,0,0,0.25), 0 0 0 1px var(--panel-border); }
-        .ts-panel.open { display:block; animation:tsFade .15s ease; }
-        @keyframes tsFade { from{opacity:0; transform:translateY(-4px);} to{opacity:1; transform:translateY(0);} }
-        .ts-search-wrap { padding:0 12px 6px; }
-        .ts-search { width:100%; padding:7px 10px; font-size:13px; border:1px solid var(--panel-border); background:var(--btn-bg); color:var(--fg); border-radius:var(--radius-sm); outline:none; transition:border-color var(--transition-fast); }
-        .ts-search:focus { border-color:var(--fg); }
-        .ts-options { list-style:none; margin:0; padding:0; }
-        .ts-option { padding:7px 14px; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:6px; line-height:1.3; transition:background .12s; }
-        .ts-option[data-selected="true"] { background:var(--accent-subtle); font-weight:600; }
-        .ts-option:hover, .ts-option:focus { background:var(--accent-subtle); outline:none; }
-        .ts-empty { padding:10px 16px; font-size:12px; color:var(--muted); }
-        .ts-footer { padding:6px 12px 4px; display:flex; justify-content:space-between; gap:8px; }
-        .ts-footer button { flex:1; font-size:12px; padding:6px 10px; border-radius:var(--radius-sm); border:1px solid var(--panel-border); background:var(--btn-bg); color:var(--fg); cursor:pointer; }
-        .ts-footer button:hover { background:var(--accent-subtle); }
-        .ts-option mark { background:transparent; color:var(--link); font-weight:600; }
-        .template-selector-wrapper.compact #template-selector { /* intentionally left empty — inherit the !important hide rule above */ }
-        .template-selector-wrapper.compact .ts-option { padding:5px 12px; }
-        /* ===== Monaco Container ===== */
-        #monaco-container { flex: 1; min-height: 120px; border: 1px solid var(--panel-border); border-radius: var(--radius-md); overflow: hidden; margin: var(--sp-2) 0; background: var(--panel-bg); }
-        /* ===== Toolbar / Action Bar (shadcn-style) ===== */
-        .button-wrapper {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding-top: var(--sp-3);
-            border-top: 1px solid var(--panel-border);
-            margin-top: auto;
-        }
-        .action-button {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 5px;
-            padding: 6px 14px;
-            border: 1px solid var(--panel-border);
-            border-radius: var(--radius-sm);
-            cursor: pointer;
-            font-size: 12.5px;
-            font-weight: 500;
-            font-family: var(--font-sans);
-            line-height: 1;
-            white-space: nowrap;
-            background: transparent;
-            color: var(--fg);
-            transition: all var(--transition-fast);
-            user-select: none;
-        }
-        .action-button svg {
-            width: 14px; height: 14px;
-            fill: none; stroke: currentColor;
-            stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
-            flex-shrink: 0;
-        }
-        .action-button:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
-        .action-button:hover:not(:disabled) { background: var(--accent-subtle); border-color: var(--muted); }
-        .action-button:active:not(:disabled) { background: var(--accent-muted); }
-        .action-button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
-        /* Primary — solid dark */
-        #run-button { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
-        #run-button:hover:not(:disabled) { background: var(--accent-light); border-color: var(--accent-light); }
-        /* ===== Output ===== */
-        .output-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--sp-2); }
-        .output-header h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--fg); }
-        .output-stats { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: var(--sp-2); }
-        #output { flex: 1; border: 1px solid var(--panel-border); background: var(--output-bg); color: var(--fg); padding: var(--sp-3) var(--sp-4); white-space: pre-wrap; word-wrap: break-word; border-radius: var(--radius-md); overflow-y: auto; font-family: var(--font-mono); font-size: 14px; line-height: 1.6; }
-        /* ===== Status Indicator ===== */
-        .status-indicator { display: inline-flex; align-items: center; justify-content: center; width: 8px; height: 8px; border-radius: var(--radius-full); margin-right: 4px; }
-        .status-idle { background: var(--muted); }
-        .status-running { background: var(--fg); animation: pulse 1.2s ease infinite; }
-        .status-success { background: #22c55e; }
-        .status-error { background: #ef4444; }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-        /* ===== Notifications ===== */
-        .notification { position: fixed; bottom: var(--sp-5); right: var(--sp-5); background: var(--panel-bg); color: var(--fg); padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-md); border: 1px solid var(--panel-border); animation: slideIn 0.2s ease; max-width: 280px; z-index: 1000; font-size: 13px; font-weight: 500; }
-        @keyframes slideIn { from{transform:translateX(280px);opacity:0} to{transform:translateX(0);opacity:1} }
-        @keyframes slideOut { from{transform:translateX(0);opacity:1} to{transform:translateX(280px);opacity:0} }
-        .notification.success { border-left: 3px solid #22c55e; }
-        .notification.error { border-left: 3px solid #ef4444; }
-        .notification.info { border-left: 3px solid var(--link); }
-        .notification.warning { border-left: 3px solid #f59e0b; }
-        /* ===== Modals ===== */
-        .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:2000; justify-content:center; align-items:center; }
-        .dark-mode .modal { background:rgba(0,0,0,0.6); }
-        .modal.active { display:flex; animation: modalFadeIn 0.15s ease; }
-        @keyframes modalFadeIn { from{opacity:0} to{opacity:1} }
-        .modal-content { background: var(--panel-bg); color: var(--fg); padding: var(--sp-6); border-radius: var(--radius-xl); max-width: 700px; width: 92%; border: 1px solid var(--panel-border); position:relative; overflow:hidden; }
-        .modal-header { font-size: 15px; font-weight: 600; margin-bottom: var(--sp-3); }
-        .modal-body { margin-bottom: var(--sp-4); }
-        .modal-footer { display: flex; gap: var(--sp-2); justify-content: flex-end; }
-        .modal-footer button { padding: 7px 16px; border: 1px solid var(--panel-border); border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; font-weight: 500; transition: background var(--transition-fast); background: var(--btn-bg); color: var(--btn-fg); }
-        .modal-footer .btn-primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
-        .modal-footer .btn-primary:hover { background: var(--accent-light); border-color: var(--accent-light); }
-        .modal-footer .btn-secondary { background: var(--btn-bg); color: var(--btn-fg); }
-        .modal-footer .btn-secondary:hover { background: var(--accent-subtle); }
-        /* ===== Share Type Switch (长链/短链 切换按钮) ===== */
-        .share-type-switch { display: flex; gap: 6px; margin-top: 10px; }
-        .share-type-btn {
-            flex: 1;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 5px;
-            padding: 7px 10px;
-            border: 1px solid var(--panel-border);
-            border-radius: 6px;
-            background: var(--btn-bg);
-            color: var(--fg);
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 500;
-            font-family: inherit;
-            line-height: 1;
-            white-space: nowrap;
-            transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-        }
-        .share-type-btn svg {
-            width: 13px;
-            height: 13px;
-            flex-shrink: 0;
-            display: block;
-        }
-        .share-type-btn:hover { background: var(--accent-subtle); border-color: var(--accent-light); }
-        .share-type-btn.active { background: var(--fg); color: var(--bg); border-color: var(--fg); }
-        .share-type-btn.active svg { color: var(--bg); }
-        .share-type-btn:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
-        /* ===== Badge ===== */
-        .badge { display:inline-block; padding:2px 8px; font-size:11px; color:var(--bg); background:var(--fg); border-radius:var(--radius-sm); margin-left:6px; font-weight:500; }
-        .badge.hidden { display:none; }
-        /* ===== Monaco Error Decorations ===== */
-        .monaco-editor .error-line-decoration { background: rgba(239,68,68,0.1); }
-        .monaco-editor .error-line-glyph { background: #ef4444; width: 3px; }
-        /* ===== Tiny Buttons ===== */
-        .tiny-button { font-size:11px; padding:4px 10px; border-radius: var(--radius-sm); border:1px solid var(--panel-border); background: var(--btn-bg); color: var(--btn-fg); cursor:pointer; transition: background var(--transition-fast), border-color var(--transition-fast); font-weight: 500; }
-        .tiny-button:hover { border-color: var(--muted); background: var(--accent-subtle); }
-        .tiny-button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
-        /* ===== Layout / Scroll Fixes ===== */
-        .playground-wrapper, .panel, .editor-panel, .output-panel { min-height: 0; }
-        #monaco-container, #output { min-height: 0; }
-        #output { overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; scrollbar-gutter: stable; }
-        /* ===== Scrollbar System ===== */
-        * { scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-bg); scrollbar-width: thin; }
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
-        ::-webkit-scrollbar-corner { background: transparent; }
-        .monaco-scrollable-element > .scrollbar.vertical { width: 8px !important; }
-        .monaco-scrollable-element > .scrollbar.horizontal { height: 8px !important; }
-        .monaco-scrollable-element > .scrollbar { background: transparent !important; }
-        .monaco-scrollable-element > .scrollbar > .slider { background: var(--scrollbar-thumb) !important; border-radius: 4px !important; }
-        .monaco-scrollable-element > .scrollbar > .slider:hover { background: var(--scrollbar-thumb-hover) !important; }
-        /* ===== IME ===== */
-        .monaco-editor .inputarea { ime-mode: inactive; }
-        /* ===== Data Manager ===== */
-        .file-list { max-height: 260px; overflow:auto; border:1px solid var(--panel-border); padding:var(--sp-2); border-radius:var(--radius-sm); }
-        .file-item { display:flex; justify-content:space-between; align-items:center; padding:var(--sp-2) var(--sp-2); border-bottom:1px solid var(--panel-border); font-family: var(--font-mono); font-size:12px; }
-        .file-item:last-child { border-bottom:none; }
-        .file-item .name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70%; }
-        .file-item .name.clickable { cursor:pointer; color: var(--link); text-decoration: underline; text-decoration-color: transparent; transition: text-decoration-color var(--transition-fast); }
-        .file-item .name.clickable:hover { text-decoration-color: currentColor; color: var(--link-hover); }
-        .file-item .ops { display:flex; gap:var(--sp-2); }
-        #preview-editor-container { border: 1px solid var(--panel-border); border-radius:var(--radius-sm); overflow: hidden; background: var(--panel-bg); }
-        #csv-virtual-container { border: 1px solid var(--panel-border); border-radius:var(--radius-sm); background: var(--panel-bg); font-family: var(--font-mono); font-size: 15px; line-height: 1.6; overflow: auto; display: none; }
-        .csv-rows { position: relative; }
-        .csv-row { display: grid; border-bottom: 1px solid var(--panel-border); white-space: pre; }
-        .csv-row.header { position: sticky; top: 0; z-index: 2; background: var(--panel-bg); border-bottom: 2px solid var(--panel-border); font-weight: 600; }
-        .csv-cell { padding: 2px 8px; overflow: hidden; text-overflow: ellipsis; }
-        /* ===== Footer ===== */
-        .site-footer { margin-top:auto; padding:var(--sp-3) 0 var(--sp-2); font-size:11px; text-align:center; color: var(--muted); border-top:1px solid var(--panel-border); }
-        .site-footer .partner-link { color: var(--link); font-weight:500; text-decoration:none; padding:0 4px; }
-        .site-footer .partner-link:hover { text-decoration: underline; }
-        /* ===== Responsive ===== */
-        @media (min-width:769px) and (max-width:1024px) { .editor-panel{flex-basis:45%} .output-panel{flex-basis:55%} .action-button{padding:5px 10px;font-size:12px} }
-        @media (max-width: 768px) {
-            #app-container{padding:var(--sp-2) var(--sp-3);gap:var(--sp-2)}
-            .playground-wrapper{flex-direction:column;gap:var(--sp-2)}
-            .panel{padding:var(--sp-3)}
-            h2{font-size:15px}
-            .template-selector-wrapper{flex-direction:column;gap:var(--sp-1)}
-            .button-wrapper{flex-wrap:wrap;gap:4px}
-            .action-button{font-size:11.5px;padding:5px 10px}
-            #output{font-size:13px;padding:var(--sp-2) var(--sp-3)}
-            header{flex-direction:column;gap:var(--sp-2);align-items:flex-start;padding:var(--sp-3)}
-            .header-actions{width:100%;justify-content:space-between}
-            .icon-button{width:32px;height:32px}
-            .icon-button svg{width:16px;height:16px}
-            .modal-content{padding:var(--sp-4);border-radius:var(--radius-lg)}
-        }
-        @media (max-width: 480px) {
-            #app-container{padding:var(--sp-1) var(--sp-2)}
-            .panel{padding:var(--sp-2)}
-            .button-wrapper{gap:4px}
-            .action-button{padding:4px 8px;font-size:11px}
-            #template-selector{font-size:12px;padding:7px 32px 7px 8px}
-            .ts-trigger{font-size:12px;padding:7px 32px 7px 8px}
-            header{padding:var(--sp-2) var(--sp-3)}
-            h2{font-size:14px}
-        }
-        /* Zoom hint */
-        .zoom-hint { position: fixed; right: 20px; bottom: 80px; background: var(--panel-bg); color: var(--fg); border:1px solid var(--panel-border); padding: 4px 8px; border-radius: var(--radius-sm); font-size: 11px; z-index: 1200; opacity: 0; transform: translateY(8px); transition: opacity var(--transition-fast), transform var(--transition-fast); }
-        .zoom-hint.show { opacity: .9; transform: translateY(0); }
-
-        /* ===== prefers-reduced-motion — 尊重系统级"减少动效"偏好 ===== */
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after {
-                animation-duration: 0.01ms !important;
-                animation-iteration-count: 1 !important;
-                transition-duration: 0.01ms !important;
-                scroll-behavior: auto !important;
-            }
-            .loader-ring, .status-running, .notification, .modal.active { animation: none !important; }
-        }
-    </style>
+    <!-- Design System styles (extracted to styles.css for cache reuse + maintainability) -->
+    <link rel="stylesheet" href="styles.css?v=1.0.5">
 </head>
 <body class="loading">
 <noscript>
-    <div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0a0a0a;color:#fafafa;font-family:system-ui,sans-serif;padding:24px;text-align:center;z-index:10000;">
-        <div style="max-width:420px;">
-            <h1 style="margin:0 0 12px;font-size:20px;">需要启用 JavaScript</h1>
-            <p style="margin:0;font-size:14px;color:#a1a1aa;line-height:1.6;">枫下代码是基于 WebAssembly + Web Worker 的 Python 运行环境，请先在浏览器中启用 JavaScript 后再访问。</p>
+    <div class="noscript-fallback">
+        <div class="noscript-inner">
+            <h1>需要启用 JavaScript</h1>
+            <p>枫下代码是基于 WebAssembly + Web Worker 的 Python 运行环境，请先在浏览器中启用 JavaScript 后再访问。</p>
         </div>
     </div>
 </noscript>
@@ -444,14 +127,14 @@
         </div>
     </div>
     <!-- Friend link footer inside main container for proper layout -->
-    <footer class="site-footer" role="contentinfo" style="flex:0 0 auto;">本站由 <a class="partner-link" href="https://app.rainyun.com/" target="_blank" rel="noopener noreferrer" title="雨云 - 云服务器与算力服务">雨云</a> 提供计算服务</footer>
+    <footer class="site-footer" role="contentinfo">本站由 <a class="partner-link" href="https://app.rainyun.com/" target="_blank" rel="noopener noreferrer" title="雨云 - 云服务器与算力服务">雨云</a> 提供计算服务</footer>
 </div>
 <div class="modal" id="share-modal" role="dialog" aria-modal="true" aria-labelledby="share-modal-title">
     <div class="modal-content">
         <div class="modal-header" id="share-modal-title">分享代码</div>
         <div class="modal-body">
             <p>分享链接已复制到剪贴板:</p>
-            <input type="text" id="share-url" readonly aria-label="分享链接" style="width: 100%; padding: 8px; border: 1px solid var(--panel-border); border-radius: 6px; font-family: monospace; font-size: 12px; background: var(--panel-bg); color: var(--fg);">
+            <input type="text" id="share-url" readonly aria-label="分享链接" class="share-url-input">
             <div class="share-type-switch" id="share-type-switch">
                 <button type="button" id="share-type-long" class="share-type-btn" aria-label="切换到长链（跨设备可用）">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
@@ -462,10 +145,10 @@
                     <span>短链 · 同浏览器</span>
                 </button>
             </div>
-            <p id="share-info" style="margin-top:8px;font-size:12px;color:var(--muted);line-height:1.5;"></p>
+            <p id="share-info" class="share-info"></p>
         </div>
         <div class="modal-footer">
-            <button class="btn-secondary" onclick="document.getElementById('share-modal').classList.remove('active')">关闭</button>
+            <button class="btn-secondary modal-close-btn" data-modal="share-modal">关闭</button>
             <button class="btn-primary" id="open-share-url-button">打开链接</button>
         </div>
     </div>
@@ -483,7 +166,7 @@
             </ul>
         </div>
         <div class="modal-footer">
-            <button class="btn-secondary" onclick="document.getElementById('help-modal').classList.remove('active')">关闭</button>
+            <button class="btn-secondary modal-close-btn" data-modal="help-modal">关闭</button>
         </div>
     </div>
 </div>
@@ -492,15 +175,15 @@
     <div class="modal-content">
         <div class="modal-header" id="settings-modal-title">显示设置</div>
         <div class="modal-body">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-                <label for="editor-font-slider" style="min-width:90px;">编辑器字号</label>
-                <input type="range" id="editor-font-slider" min="10" max="32" step="1" style="flex:1;">
-                <span id="editor-font-value" style="width:60px;text-align:right;">18px</span>
+            <div class="settings-row">
+                <label for="editor-font-slider">编辑器字号</label>
+                <input type="range" id="editor-font-slider" min="10" max="32" step="1">
+                <span id="editor-font-value" class="settings-value">18px</span>
             </div>
-            <div style="display:flex;align-items:center;gap:10px;">
-                <label for="output-font-slider" style="min-width:90px;">输出区域字号</label>
-                <input type="range" id="output-font-slider" min="10" max="28" step="1" style="flex:1;">
-                <span id="output-font-value" style="width:60px;text-align:right;">15px</span>
+            <div class="settings-row">
+                <label for="output-font-slider">输出区域字号</label>
+                <input type="range" id="output-font-slider" min="10" max="28" step="1">
+                <span id="output-font-value" class="settings-value">15px</span>
             </div>
         </div>
         <div class="modal-footer">
@@ -515,14 +198,14 @@
     <div class="modal-content">
         <div class="modal-header" id="data-modal-title">数据管理器（/data）</div>
         <div class="modal-body">
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+            <div class="data-toolbar">
                 <button class="tiny-button" id="refresh-data-list">刷新</button>
                 <button class="tiny-button" id="upload-data-from-modal">上传文件</button>
-                <span class="muted" style="font-size:12px;">支持 CSV/TXT 预览</span>
+                <span class="muted data-hint">支持 CSV/TXT 预览</span>
             </div>
             <div id="data-file-list" class="file-list" aria-live="polite">正在加载…</div>
-            <div style="margin-top:12px;">
-                <label for="preview-editor-container" style="font-weight:600;">预览</label>
+            <div class="data-section">
+                <label for="preview-editor-container" class="data-title">预览</label>
                 <div class="preview-controls">
                     <button class="tiny-button" id="csv-toggle-view" style="display:none">显示原文</button>
                     <span id="csv-stats" class="muted"></span>
@@ -532,7 +215,7 @@
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn-secondary" onclick="document.getElementById('data-modal').classList.remove('active')">关闭</button>
+            <button class="btn-secondary modal-close-btn" data-modal="data-modal">关闭</button>
         </div>
     </div>
 </div>
@@ -541,10 +224,10 @@
     /*! LZ-String 1.4.4 (MIT) https://github.com/pieroxy/lz-string */
     (function(global){
         var f=String.fromCharCode;
+        var baseReverseDic = {};
         var LZString={
             _keyStrUriSafe:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$",
             _getBaseValue:function(alphabet, character){
-                var baseReverseDic = {};
                 if (!baseReverseDic[alphabet]){
                     baseReverseDic[alphabet] = {};
                     for (var i=0; i<alphabet.length; i++){
@@ -980,15 +663,15 @@
     const CONFIG = { EDITOR:{ fontSize:{desktop:18,mobile:16}, lineHeight:{desktop:28,mobile:24}, debounceMs:1000, font:"'JetBrains Mono', 'LXGW WenKai Screen', monospace", lineHeightFactor: 1.7 }, PACKAGES:{ skipStubs:['numpy'], debounceMs:1500, slowLibraries:['pandas','numpy','scipy','sklearn','tensorflow','torch','cv2','PIL'] }, COMPLETION:{ triggerChars:['.'], cacheExpireMs:1000, requestTimeoutMs:10000, maxSuggestions:30, warmupTimeoutMs:8000 }, RUNTIME:{ executionTimeoutMs:30000, mobileBreakpoint:768 }, FORBIDDEN_MODULES:['subprocess','os.system','__import__','eval','exec'] };
     const APP_VERSION = '2025-11-07-1';
 
-    class WorkerClient { constructor(workerPath, outputEl, progressEl){ this.workerPath=workerPath; this.worker=null; this.reqId=1; this.pending=new Map(); this.outputEl=outputEl; this.progressEl=progressEl; this.indexURL='pyodide/'; this.jediReady=false; this.interruptView=null; }
+    class WorkerClient { constructor(workerPath, outputEl, progressEl){ this.workerPath=workerPath; this.worker=null; this.reqId=1; this.pending=new Map(); this.outputEl=outputEl; this.progressEl=progressEl; this.indexURL='pyodide/'; this.jediReady=false; this.interruptView=null; this._outputBuffer=[];this._outputFlushRAF=0; }
         async init(indexURL='pyodide/'){ this.indexURL=indexURL; return new Promise((res,rej)=>{ try{ const url = `${(this.workerPath||'py-worker.js')}?v=${encodeURIComponent(APP_VERSION)}`; this.worker=new Worker(url); this.worker.onmessage=(e)=>this._onMessage(e); res(); }catch(e){ rej(e); } }); }
         async restart(){ try{ this.worker && this.worker.terminate(); }catch{} await this.init(this.indexURL); let resp=await this.request('load',{ indexURL:this.indexURL, prefer:'cdn' }); if(!resp||!resp.success) throw new Error(resp?.error||'加载 Pyodide 失败'); if(this.jediReady){ resp=await this.request('init_jedi',{}); if(!resp||!resp.success) console.warn('Jedi 重新初始化��败:',resp?.error); } if(this.interruptView){ try{ await this.request('setup_interrupt',{ sab:this.interruptView.buffer }); }catch{} } }
         setInterruptView(view){ this.interruptView=view; }
         interrupt(){ if(this.interruptView){ Atomics.store(this.interruptView,0,2); Atomics.notify(this.interruptView,0); return true; } return false; }
-        _onMessage(e){ const msg=e.data||{}; const {id,type,payload,text}=msg; switch(type){ case 'response':{ const r=this.pending.get(id); if(r){ this.pending.delete(id); r(payload); } break; } case 'stdout':{ if(this.outputEl){ this.outputEl.textContent += (this.outputEl.textContent? '\n':'') + (text??''); } break; } case 'stderr':{ if(this.outputEl){ this.outputEl.textContent += (this.outputEl.textContent? '\n':'') + (text??''); } break; } case 'progress':{ if(this.progressEl){ this.progressEl.textContent = msg.payload ? `${msg.text} ${msg.payload}` : (msg.text||''); } try{ if(msg.text){ const lower=String(msg.text).toLowerCase(); if(lower.includes('补全')||lower.includes('jedi')){ Notification.show(`${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2500); } else if(lower.includes('安装')){ Notification.show(`${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2500); } else if(lower.includes('数据')){ Notification.show(`${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2000); } }
+        _onMessage(e){ const msg=e.data||{}; const {id,type,payload,text}=msg; switch(type){ case 'response':{ const r=this.pending.get(id); if(r){ this.pending.delete(id); r(payload); } break; } case 'stdout':{ if(this.outputEl){ this._outputBuffer.push(text??''); if(!this._outputFlushRAF){ this._outputFlushRAF=requestAnimationFrame(()=>{ const chunk=this._outputBuffer.join('\n'); this._outputBuffer.length=0; this._outputFlushRAF=0; this.outputEl.textContent += (this.outputEl.textContent? '\n':'') + chunk; this.outputEl.scrollTop=this.outputEl.scrollHeight; }); } } break; } case 'stderr':{ if(this.outputEl){ this._outputBuffer.push(text??''); if(!this._outputFlushRAF){ this._outputFlushRAF=requestAnimationFrame(()=>{ const chunk=this._outputBuffer.join('\n'); this._outputBuffer.length=0; this._outputFlushRAF=0; this.outputEl.textContent += (this.outputEl.textContent? '\n':'') + chunk; this.outputEl.scrollTop=this.outputEl.scrollHeight; }); } } break; } case 'progress':{ if(this.progressEl){ this.progressEl.textContent = msg.payload ? `${msg.text} ${msg.payload}` : (msg.text||''); } try{ if(msg.text){ const lower=String(msg.text).toLowerCase(); if(lower.includes('补全')||lower.includes('jedi')){ Notification.show(`${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2500); } else if(lower.includes('安装')){ Notification.show(`${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2500); } else if(lower.includes('数据')){ Notification.show(`${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2000); } }
         }catch(e){}
             break; } default: break; } }
-        request(action,payload={}){ return new Promise((res,rej)=>{ if(!this.worker) return rej(new Error('Worker not initialized')); const id=this.reqId++; this.pending.set(id,(resp)=>res(resp)); this.worker.postMessage({ id,type:'request',action,payload }); setTimeout(()=>{ if(this.pending.has(id)){ this.pending.delete(id); rej(new Error(`Worker request '${action}' timeout`)); } }, Math.max(CONFIG.COMPLETION.requestTimeoutMs, CONFIG.RUNTIME.executionTimeoutMs)); }); }
+        request(action,payload={}){ return new Promise((res,rej)=>{ if(!this.worker) return rej(new Error('Worker not initialized')); const id=this.reqId++; this.pending.set(id,(resp)=>res(resp)); this.worker.postMessage({ id,type:'request',action,payload }); const timeoutMs = action === 'run_code' ? CONFIG.RUNTIME.executionTimeoutMs : CONFIG.COMPLETION.requestTimeoutMs; setTimeout(()=>{ if(this.pending.has(id)){ this.pending.delete(id); rej(new Error(`Worker request '${action}' timeout`)); } }, timeoutMs); }); }
     }
 
     class Notification {
@@ -1003,7 +686,6 @@
             if (!el) {
                 el = document.createElement('div');
                 el.id = 'notification-container';
-                el.style.cssText = 'position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column-reverse;gap:8px;z-index:1000;pointer-events:none;';
                 document.body.appendChild(el);
             }
             this._container = el;
@@ -1033,7 +715,6 @@
                 const n = document.createElement('div');
                 n.className = `notification ${type}`;
                 n.textContent = key;
-                n.style.cssText = 'pointer-events:auto;';
                 container.appendChild(n);
                 const hideTimer = setTimeout(() => this._dismiss(n), duration);
                 this._recent.set(key, { ts: now, el: n, _hideTimer: hideTimer });
@@ -1222,6 +903,69 @@
         async execute(code){ this.validateCode(code); const start=Date.now(); const controller=this.workerClient.request('execute',{ code }); const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error(`执行超时 (>${CONFIG.RUNTIME.executionTimeoutMs/1000}秒)`)), CONFIG.RUNTIME.executionTimeoutMs)); try{ const resp=await Promise.race([controller, timeout]); if(resp && resp.success){ return { success:true, output: resp.output||'(无输出)', time: resp.time || (((Date.now()-start)/1000).toFixed(3)) }; } const msg=(resp&&resp.output)||(resp&&resp.error)||'执行失败'; return { success:false, output:`错误:\n${msg}`, time: resp?.time || (((Date.now()-start)/1000).toFixed(3)), line: resp?.line ?? null, col: resp?.col ?? null }; } catch(e){ return { success:false, output:`错误:\n${e.message}`, time: ((Date.now()-start)/1000).toFixed(3) }; } }
     }
 
+    // 自定义 Monaco 主题：色板从 CSS 变量读取，自动跟随明暗模式
+    function applyMonacoTheme(monaco) {
+        if (!monaco || !monaco.editor) return;
+        const get = (name) => {
+            try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#000000'; }
+            catch { return '#000000'; }
+        };
+        // 读取 CSS 变量
+        const light = {
+            bg: get('--bg') || '#ffffff',
+            fg: get('--fg') || '#09090b',
+            panel: get('--panel-bg') || '#ffffff',
+            border: get('--panel-border') || '#e4e4e7',
+            muted: get('--muted') || '#71717a',
+            link: get('--link') || '#3b82f6',
+        };
+        const dark = {
+            bg: get('--bg') || '#09090b',
+            fg: get('--fg') || '#fafafa',
+            panel: get('--panel-bg') || '#09090b',
+            border: get('--panel-border') || '#27272a',
+            muted: get('--muted') || '#a1a1aa',
+            link: get('--link') || '#60a5fa',
+        };
+        try {
+            monaco.editor.defineTheme('fenxia-light', {
+                base: 'vs', inherit: true, rules: [],
+                colors: {
+                    'editor.background': light.bg,
+                    'editor.foreground': light.fg,
+                    'editorLineNumber.foreground': light.muted,
+                    'editorCursor.foreground': light.fg,
+                    'editor.lineHighlightBackground': light.panel,
+                    'editorWidget.background': light.panel,
+                    'editorWidget.border': light.border,
+                    'editorSuggestWidget.background': light.panel,
+                    'editorSuggestWidget.border': light.border,
+                    'editorSuggestWidget.selectedBackground': light.muted + '22',
+                }
+            });
+            monaco.editor.defineTheme('fenxia-dark', {
+                base: 'vs-dark', inherit: true, rules: [],
+                colors: {
+                    'editor.background': dark.bg,
+                    'editor.foreground': dark.fg,
+                    'editorLineNumber.foreground': dark.muted,
+                    'editorCursor.foreground': dark.fg,
+                    'editor.lineHighlightBackground': dark.panel,
+                    'editorWidget.background': dark.panel,
+                    'editorWidget.border': dark.border,
+                    'editorSuggestWidget.background': dark.panel,
+                    'editorSuggestWidget.border': dark.border,
+                    'editorSuggestWidget.selectedBackground': dark.muted + '22',
+                }
+            });
+        } catch (e) { console.warn('Monaco defineTheme failed:', e); }
+    }
+    function setMonacoTheme(monaco) {
+        if (!monaco || !monaco.editor) return;
+        const isDark = document.body.classList.contains('dark-mode');
+        try { monaco.editor.setTheme(isDark ? 'fenxia-dark' : 'fenxia-light'); } catch (e) { console.warn('Monaco setTheme failed:', e); }
+    }
+
     class PythonREPL {
         constructor(){ this.monaco=null; this.editor=null; this.packageManager=null; this.codeExecutor=null; this.completionProvider=null; this.workerClient=null; this.interruptView=null; this.hasInterrupt=false; this.errorDecorations=[]; this.lastErrorLine=null; this.activeArea='editor'; }
         async trySetupInterrupt(){ if(typeof SharedArrayBuffer==='undefined') return false; const sab=new SharedArrayBuffer(4); const view=new Int32Array(sab); try{ const resp=await this.workerClient.request('setup_interrupt',{ sab }); if(resp&&resp.success){ this.interruptView=view; this.hasInterrupt=true; this.workerClient.setInterruptView(view); return true; } }catch(e){ console.warn('setup_interrupt failed:',e);} return false; }
@@ -1232,7 +976,6 @@
                 const trySources = [
                     'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.min.js',
                     'https://unpkg.com/monaco-editor@0.47.0/min/vs/loader.min.js',
-                    '/monaco/min/vs/loader.js',
                     '/monaco/min/vs/loader.js'
                 ];
                 let idx = 0; let done = false;
@@ -1257,7 +1000,6 @@
             const bases = [
                 'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs',
                 'https://unpkg.com/monaco-editor@0.47.0/min/vs',
-                '/monaco/min/vs',
                 '/monaco/min/vs'
             ];
 
@@ -1308,13 +1050,15 @@
             if(dark){
                 document.body.classList.add('dark-mode');
                 document.documentElement.classList.add('dark-mode');
-                this.monaco.editor.setTheme('vs-dark');
+                applyMonacoTheme(this.monaco);
+                setMonacoTheme(this.monaco);
                 const db = document.getElementById('dark-mode-button');
                 if(db){ db.setAttribute('data-tooltip','浅色模式'); db.innerHTML='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>'; }
             } else {
                 document.body.classList.remove('dark-mode');
                 document.documentElement.classList.remove('dark-mode');
-                this.monaco.editor.setTheme('vs');
+                applyMonacoTheme(this.monaco);
+                setMonacoTheme(this.monaco);
             }
             const initialCode=StorageManager.getCode();
             this.editor=new EditorManager('monaco-container', initialCode);
@@ -1421,7 +1165,7 @@
             if (darkBtn) darkBtn.addEventListener('click', ()=>{
                 const isDark = document.body.classList.toggle('dark-mode');
                 document.documentElement.classList.toggle('dark-mode', isDark);
-                try { this.monaco && this.monaco.editor.setTheme(isDark? 'vs-dark':'vs'); } catch {}
+                try { applyMonacoTheme(this.monaco); setMonacoTheme(this.monaco); } catch {}
                 try { StorageManager.setTheme(isDark? 'dark':'light'); } catch {}
                 darkBtn.setAttribute('data-tooltip', isDark ? '浅色模式' : '深色模式');
                 const svgMoon = '<svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
@@ -1437,6 +1181,13 @@
             // Settings modal & controls
             if (settingsBtn && settingsModal) settingsBtn.addEventListener('click', ()=> settingsModal.classList.add('active'));
             if (closeSettingsBtn && settingsModal) closeSettingsBtn.addEventListener('click', ()=> settingsModal.classList.remove('active'));
+            // Generic modal close buttons
+            document.querySelectorAll('.modal-close-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const modalId = btn.dataset.modal;
+                    if (modalId) document.getElementById(modalId)?.classList.remove('active');
+                });
+            });
             if (copyShortBtn) copyShortBtn.addEventListener('click', ()=> this.shareCode());
             if (editorSlider && editorValue) {
                 const applyEditorFs = (v)=>{ const n = Math.round(Number(v)||0); if(!n) return; this.editor && this.editor.setFontSize(n); editorValue.textContent = `${n}px`; };
@@ -1585,7 +1336,7 @@
                     rows.forEach((cols)=>{ const row = document.createElement('div'); row.className='csv-row'; row.style.gridTemplateColumns = this.gridTemplate; for(let i=0;i<this.colCount;i++){ const cell=document.createElement('div'); cell.className='csv-cell'; cell.textContent = String(cols[i]??''); row.appendChild(cell); } frag.appendChild(row); });
                     // position
                     const topPad = start * lh + (this.header? lh: 0);
-                    this.rowsHost.innerHTML=''; const padTopDiv = document.createElement('div'); padTopDiv.style.height = topPad + 'px'; this.rowsHost.appendChild(padTopDiv); this.rowsHost.appendChild(frag);
+                    while(this.rowsHost.lastChild) this.rowsHost.removeChild(this.rowsHost.lastChild); const padTopDiv = document.createElement('div'); padTopDiv.style.height = topPad + 'px'; this.rowsHost.appendChild(padTopDiv); this.rowsHost.appendChild(frag);
                     // spacer to set total height
                     const total = Math.max(this.totalLines * lh + (this.header? lh: 0), ch);
                     const spacerTail = document.createElement('div'); spacerTail.style.height = Math.max(0, total - (topPad + (rows.length+ (this.header?1:0))*lh)) + 'px'; this.rowsHost.appendChild(spacerTail);
@@ -2029,9 +1780,10 @@
                         closePanel();
                     });
                     li.addEventListener('mousemove', () => {
-                        // sync active highlight with hover
-                        Array.from(optsList.children).forEach(c => c.style.background = '');
-                        li.style.background = 'var(--accent-subtle)';
+                        if (activeIndex === i) return;
+                        const prev = optsList.querySelector('[data-active="true"]');
+                        if (prev) prev.dataset.active = 'false';
+                        li.dataset.active = 'true';
                         activeIndex = i;
                     });
                     frag.appendChild(li);
@@ -2143,7 +1895,7 @@
                 if(next >= items.length) next = 0;
                 activeIndex = next;
                 items.forEach((el, i) => {
-                    el.style.background = (i === activeIndex) ? 'var(--accent-subtle)' : '';
+                    el.dataset.active = (i === activeIndex) ? 'true' : 'false';
                 });
                 try { items[activeIndex].scrollIntoView({ block: 'nearest' }); } catch{}
             }
@@ -2466,12 +2218,12 @@ except Exception as e:
 
                 if (infoEl){
                     if (type === 'long') {
-                        infoEl.innerHTML = `<strong style="color:var(--accent);">跨设备可用</strong> · 永久有效 · URL 含完整代码（${url.length} 字符）`;
+                        infoEl.innerHTML = `<strong class="text-accent">跨设备可用</strong> · 永久有效 · URL 含完整代码（${url.length} 字符）`;
                         infoEl.style.color = 'var(--muted)';
                     } else if (type === 'short') {
                         const expiryDate = new Date(Date.now() + ShareStore.EXPIRE_MS);
                         const dateStr = expiryDate.toLocaleDateString('zh-CN', {month:'long', day:'numeric'});
-                        infoEl.innerHTML = `<strong style="color:#f59e0b;">仅限当前浏览器</strong> · 7 天有效期至 ${dateStr} · 跨设备请使用「下载/复制代码」`;
+                        infoEl.innerHTML = `<strong class="text-warning">仅限当前浏览器</strong> · 7 天有效期至 ${dateStr} · 跨设备请使用「下载/复制代码」`;
                         infoEl.style.color = 'var(--muted)';
                     } else {
                         infoEl.textContent = '链接生成失败，请使用「下载/复制代码」';
