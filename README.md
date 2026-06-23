@@ -62,9 +62,9 @@ npm run start
 
 ## 五、常用操作
 
-- 运行代码：点击“▶️ 运行”或 Ctrl+Enter
+- 运行代码：点击"运行"或 Ctrl+Enter
 - 格式化：暂未实现（占位）
-- 分享：点击“🔗 分享”复制带 code 的链接；也可用 `?template=...` 预置模板
+- 分享：点击"分享"复制带 code 的链接；也可用 `?template=...` 预置模板
 
 
 ## 六、故障排查
@@ -72,3 +72,13 @@ npm run start
 - 白屏或控制台报错：打开 F12 查看 Console；资源加载失败时可检查是否存在本地 `pyodide/` 目录。
 - 包安装失败：检查包名是否正确；或确认 `pyodide/` 目录是否包含所需包，或改为在线 CDN。
 - 资源加载慢：Monaco 走 CDN，可切换到你更快的镜像源或放到本地。
+
+## 七、性能与体验优化
+
+- **浏览器原生 color-scheme**：通过 `<meta name="color-scheme">` 与 `color-scheme: light/dark` CSS 声明，让滚动条、表单控件、链接等系统 UI 元素自动跟随主题，避免硬编码。
+- **本地 Pyodide 资源优先**：`<link rel="preload">` 预取 `python_stdlib.zip` 与 `pyodide.asm.wasm` 关键资源，缩短首次加载时间。
+- **CSS 变量回退**：`local-fonts.css` 使用 `local()` 优先系统字体，避免缺失 woff2 时 FOIT（无样式文字闪烁）。
+- **Warmed Jedi Cache**：`warmupCache` Set 避免重复预热同一模块，按"运行"时只预热本次新增包。
+- **SEO / PWA**：补全 `og:*` / `twitter:*` / `theme-color` / `site.webmanifest`，支持添加到主屏幕、社交分享卡片。
+- **404 页面**：玻璃态风格（与主站一致）+ 2 秒自动跳转 + 渐变 404 大字 + 立即返回按钮。
+- **share.html 玻璃态化**：与主站 21st.dev 风格统一，添加环境光效、按钮 hover 发光。

@@ -1,38 +1,85 @@
+/* local-fonts.css
+ * Local font definitions for 枫下代码 (Python Playground).
+ *
+ * 优先使用 Inter / JetBrains Mono 变体；若资源缺失（未下载/被裁剪），
+ * 浏览器会自动回退到系统中文字体（PingFang SC / Microsoft YaHei / Noto Sans CJK SC）。
+ */
 
+/* —— Inter（界面字体，wOFF2 CDN 已通过系统字体优雅回退） —— */
+@font-face {
+    font-family: 'Inter';
+    src: local('Inter'),
+         local('Inter-Regular'),
+         local('PingFang SC'),
+         local('Microsoft YaHei'),
+         local('Noto Sans CJK SC'),
+         local('Segoe UI');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
 
+/* —— JetBrains Mono（代码字体） —— */
+@font-face {
+    font-family: 'JetBrains Mono';
+    src: local('JetBrains Mono'),
+         local('JetBrainsMono-Regular'),
+         local('Consolas'),
+         local('Menlo'),
+         local('SFMono-Regular');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'JetBrains Mono';
+    src: local('JetBrains Mono Bold'),
+         local('JetBrainsMono-Bold'),
+         local('Consolas'),
+         local('Menlo');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'JetBrains Mono';
+    src: local('JetBrains Mono Italic'),
+         local('JetBrainsMono-Italic'),
+         local('Consolas'),
+         local('Menlo');
+    font-weight: 400;
+    font-style: italic;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'JetBrains Mono';
+    src: local('JetBrains Mono SemiBold'),
+         local('JetBrainsMono-SemiBold'),
+         local('Consolas'),
+         local('Menlo');
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'JetBrains Mono';
+    src: local('JetBrains Mono Light'),
+         local('JetBrainsMono-Light'),
+         local('Consolas'),
+         local('Menlo');
+    font-weight: 300;
+    font-style: normal;
+    font-display: swap;
+}
 
+/* —— LXGW WenKai / 霞鹜文楷（中文等宽可选） —— */
 @font-face {
-  font-family: 'JetBrains Mono';
-  src: url('./webfonts/JetBrainsMono-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'JetBrains Mono';
-  src: url('./webfonts/JetBrainsMono-Bold.woff2') format('woff2');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'JetBrains Mono';
-  src: url('./webfonts/JetBrainsMono-Italic.woff2') format('woff2');
-  font-weight: 400;
-  font-style: italic;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'JetBrains Mono';
-  src: url('./webfonts/JetBrainsMono-SemiBold.woff2') format('woff2');
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'JetBrains Mono';
-  src: url('./webfonts/JetBrainsMono-Light.woff2') format('woff2');
-  font-weight: 300;
-  font-style: normal;
-  font-display: swap;
+    font-family: 'LXGW WenKai Screen';
+    src: local('LXGW WenKai Screen'),
+         local('LXGW WenKai Mono Screen'),
+         local('LXGW WenKai'),
+         local('Sarasa Mono SC');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
 }

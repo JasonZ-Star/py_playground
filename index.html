@@ -2,29 +2,64 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>枫下代码 - Python在线</title>
-    <!-- Preconnect & DNS Prefetch for faster CDN access -->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
+    <meta name="description" content="枫下代码 — 纯静态网页的 Python 在线运行环境。基于 Pyodide + Monaco 编辑器，支持离线执行、Jedi 智能补全、自动包管理、代码分享与数据可视化。">
+    <meta name="keywords" content="Python,在线编程,Pyodide,Monaco,代码编辑器,Jupyter,在线运行,数据科学,枫下代码">
+    <meta name="author" content="枫下代码">
+    <meta name="robots" content="index, follow">
+    <meta name="referrer" content="no-referrer-when-downgrade">
+    <title>枫下代码 - Python在线 Playground</title>
+
+    <!-- Open Graph / 社交分享 -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="枫下代码 - Python在线 Playground">
+    <meta property="og:description" content="基于 Pyodide + Monaco 的纯静态 Python 在线运行环境。离线执行、智能补全、自动包管理。">
+    <meta property="og:site_name" content="枫下代码">
+    <meta property="og:locale" content="zh_CN">
+    <meta property="og:image" content="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='8' fill='%23534AB7'/%3E%3C/svg%3E">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="枫下代码 - Python在线 Playground">
+    <meta name="twitter:description" content="基于 Pyodide + Monaco 的纯静态 Python 在线运行环境。">
+
+    <!-- 预连接 / DNS 预取 / 预取关键 Pyodide 资源 -->
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
     <link rel="preconnect" href="https://unpkg.com" crossorigin>
     <link rel="dns-prefetch" href="//unpkg.com">
-    <link rel="preconnect" href="https://cdn.bootcdn.net" crossorigin>
-    <link rel="dns-prefetch" href="//cdn.bootcdn.net">
-    <link rel="prefetch" href="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js" as="script" crossorigin>
-    <link rel="prefetch" href="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.asm.wasm" as="fetch" crossorigin>
-    <link rel="prefetch" href="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/python_stdlib.zip" as="fetch" crossorigin>
-    <!-- Local fonts to avoid external CSS SRI issues -->
+    <link rel="preload" href="pyodide/python_stdlib.zip" as="fetch" crossorigin>
+    <link rel="preload" href="pyodide/pyodide.asm.wasm" as="fetch" crossorigin>
+
+    <!-- 本地字体（含中英文回退） -->
     <link rel="stylesheet" href="fonts/local-fonts.css">
-    <!-- Inline favicon to avoid 404 -->
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='8' fill='%2366cc66'/%3E%3C/svg%3E">
+    <link rel="manifest" href="site.webmanifest">
+    <!-- 防止 favicon 404 -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c6dd8'/%3E%3Cstop offset='1' stop-color='%233342b7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Ctext x='32' y='44' font-family='ui-sans-serif,system-ui' font-size='34' font-weight='800' text-anchor='middle' fill='white'%3E%E6%9F%9F%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c6dd8'/%3E%3Cstop offset='1' stop-color='%233342b7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='180' height='180' rx='40' fill='url(%23g)'/%3E%3Ctext x='90' y='124' font-family='ui-sans-serif,system-ui' font-size='100' font-weight='800' text-anchor='middle' fill='white'%3E%E6%9F%9F%3C/text%3E%3C/svg%3E">
+
+    <style>
+        /* 浏览器原生 color-scheme — 让滚动条/表单/链接自动跟随主题 */
+        :root { color-scheme: light; }
+        :root.dark-mode { color-scheme: dark; }
+    </style>
     <script>
-        // Early theme bootstrapping: set dark-mode on <html> before paint so loader adopts theme
+        // Early theme bootstrapping: set dark-mode on <html> and <body> before paint so loader adopts theme
         (function(){
             try{
                 var t = localStorage.getItem('pythonEditorTheme');
                 var dark = t ? (t === 'dark') : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-                if(dark){ document.documentElement.classList.add('dark-mode'); }
+                if(dark){
+                    document.documentElement.classList.add('dark-mode');
+                    document.body.classList.add('dark-mode');
+                    // Set initial theme icon to sun (since dark is active)
+                    var db = document.getElementById('dark-mode-button');
+                    if(db){ db.setAttribute('data-tooltip','浅色模式'); }
+                }
             }catch(e){}
         })();
     </script>
@@ -34,272 +69,324 @@
     <!-- Remove incorrect SRI on Monaco loader; loader is injected dynamically with fallback in loadMonaco() -->
     <!-- <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.min.js" defer integrity="..." crossorigin="anonymous"></script> -->
     <style>
+        /* ===== Design System — 21st.dev / shadcn aesthetic ===== */
         :root {
-            --bg: #f7f7f7;
-            --fg: #333;
-            --panel-bg: #fff;
-            --panel-border: #e0e0e0;
-            --muted: #666;
-            --output-bg: #f9f9f9;
-            --btn-bg: #f0f0f0;
-            --btn-fg: #111;
-            --shadow: rgba(0,0,0,0.1);
-            /* Scrollbar (light) */
-            --scrollbar-bg: #f0f0f0;
-            --scrollbar-thumb: #c1c1c1;
-            --scrollbar-thumb-hover: #a8a8a8;
-            /* Link colors (light) */
-            --link: #1a73e8;
-            --link-hover: #0c59d1;
+            --bg: #ffffff;
+            --fg: #09090b;
+            --panel-bg: #ffffff;
+            --panel-border: #e4e4e7;
+            --muted: #71717a;
+            --output-bg: #f4f4f5;
+            --btn-bg: #ffffff;
+            --btn-fg: #09090b;
+            --scrollbar-bg: #f4f4f5;
+            --scrollbar-thumb: #d4d4d8;
+            --scrollbar-thumb-hover: #a1a1aa;
+            --link: #3b82f6;
+            --link-hover: #2563eb;
+            --accent: #18181b;
+            --accent-light: #3f3f46;
+            --accent-subtle: #f4f4f5;
+            --accent-muted: #e4e4e7;
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --radius-lg: 10px;
+            --radius-xl: 14px;
+            --radius-full: 9999px;
+            --transition-fast: 0.12s ease;
+            --transition-smooth: 0.2s ease;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-mono: 'JetBrains Mono', 'LXGW WenKai Screen', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
         }
-        body.dark-mode {
-            --bg: #1e1e1e;
-            --fg: #ddd;
-            --panel-bg: #252526;
-            --panel-border: #333;
-            --muted: #aaa;
-            --output-bg: #1f1f1f;
-            --btn-bg: #2d2d2d;
-            --btn-fg: #eee;
-            --shadow: rgba(0,0,0,0.4);
-            /* Scrollbar (dark) */
-            --scrollbar-bg: #1f1f1f;
-            --scrollbar-thumb: #4a4a4a;
-            --scrollbar-thumb-hover: #6a6a6a;
-            /* Link colors (dark) */
-            --link: #8ab4f8;
-            --link-hover: #a9c7ff;
-        }
-        html.dark-mode {
-            --bg: #1e1e1e;
-            --fg: #ddd;
-            --panel-bg: #252526;
-            --panel-border: #333;
-            --muted: #aaa;
-            --output-bg: #1f1f1f;
-            --btn-bg: #2d2d2d;
-            --btn-fg: #eee;
-            --shadow: rgba(0,0,0,0.4);
-            /* Keep vars in sync when html has dark-mode */
-            --scrollbar-bg: #1f1e1e;
-            --scrollbar-thumb: #4a4a4a;
-            --scrollbar-thumb-hover: #6a6a6a;
+        .dark-mode {
+            --bg: #09090b;
+            --fg: #fafafa;
+            --panel-bg: #09090b;
+            --panel-border: #27272a;
+            --muted: #a1a1aa;
+            --output-bg: #18181b;
+            --btn-bg: #18181b;
+            --btn-fg: #fafafa;
+            --scrollbar-bg: #18181b;
+            --scrollbar-thumb: #3f3f46;
+            --scrollbar-thumb-hover: #52525b;
+            --link: #60a5fa;
+            --link-hover: #93c5fd;
+            --accent: #fafafa;
+            --accent-light: #e4e4e7;
+            --accent-subtle: #18181b;
+            --accent-muted: #27272a;
         }
         * { box-sizing: border-box; }
         html, body { height: 100%; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 0; overflow: hidden; background: var(--bg); color: var(--fg); }
-        #loader-overlay { display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; }
-        body.dark-mode #loader-overlay, html.dark-mode #loader-overlay { background: rgba(0,0,0,0.6); }
+        body { font-family: var(--font-sans); margin: 0; overflow: hidden; background: var(--bg); color: var(--fg); }
+        /* ===== Loader ===== */
+        #loader-overlay { display: none; position: fixed; inset: 0; background: var(--bg); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; }
         body.loading #loader-overlay { display: flex; }
         body.loading #app-container { display: none; }
-        .loader { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
-        body.dark-mode .loader, html.dark-mode .loader { border-color: #2b2b2b; border-top-color: #61dafb; }
-        @keyframes spin { 0%{transform:rotate(0)} 100%{transform:rotate(360deg)} }
-        #loading-text { margin-top: 15px; font-size: 16px; color: var(--fg); font-weight: 500; }
-        #loading-progress { margin-top: 10px; font-size: 12px; color: var(--muted); }
-        #app-container { display: flex; flex-direction: column; height: 100%; padding: 20px; gap: 15px; }
-        header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 2px solid var(--panel-border); }
-        h2 { margin: 0; color: var(--fg); font-size: 24px; }
-        .header-actions { display: flex; gap: 10px; align-items: center; }
-        .icon-button { position: relative; width: 36px; height: 36px; border: none; border-radius: 6px; background: var(--btn-bg); color: var(--btn-fg); cursor: pointer; font-size: 18px; transition: background 0.2s; }
-        .icon-button:hover { background: #e0e0e0; }
-        body.dark-mode .icon-button:hover { background: #3a3a3a; }
+        .loader-ring { width: 32px; height: 32px; border: 2px solid var(--panel-border); border-top-color: var(--fg); border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to{transform:rotate(360deg)} }
+        #loading-text { margin-top: var(--sp-4); font-size: 13px; color: var(--fg); font-weight: 500; }
+        #loading-progress { margin-top: var(--sp-1); font-size: 11px; color: var(--muted); }
+        /* ===== App Container ===== */
+        #app-container { display: flex; flex-direction: column; height: 100%; padding: var(--sp-3) var(--sp-4); gap: var(--sp-3); }
+        /* ===== Header ===== */
+        header { display: flex; justify-content: space-between; align-items: center; padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-lg); background: var(--panel-bg); border: 1px solid var(--panel-border); }
+        h2 { margin: 0; color: var(--fg); font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+        .header-actions { display: flex; gap: var(--sp-2); align-items: center; }
+        /* ===== Icon Buttons ===== */
+        .icon-button { position: relative; width: 34px; height: 34px; border: 1px solid var(--panel-border); border-radius: var(--radius-sm); background: var(--btn-bg); color: var(--btn-fg); cursor: pointer; font-size: 0; transition: background var(--transition-fast), border-color var(--transition-fast); display: flex; align-items: center; justify-content: center; }
+        .icon-button:hover { background: var(--accent-subtle); border-color: var(--accent-muted); }
+        .icon-button:active { background: var(--accent-muted); }
+        .icon-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .icon-button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+        /* Tooltips */
         .icon-button[data-tooltip]::after {
             content: attr(data-tooltip);
-            position: absolute; left: 50%; white-space: nowrap; background: #111; color: #fff; font-size: 12px; padding: 4px 8px; border-radius: 4px; opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; z-index: 100; box-shadow: 0 2px 6px var(--shadow);
+            position: absolute; left: 50%; white-space: nowrap; background: #18181b; color: #fafafa; font-size: 11px; padding: 3px 8px; border-radius: var(--radius-sm); opacity: 0; pointer-events: none; transition: opacity var(--transition-fast), transform var(--transition-fast); z-index: 100;
         }
-        .icon-button[data-tooltip][data-tooltip-pos="top"]::after { bottom: 100%; transform: translate(-50%, -8px); }
+        .dark-mode .icon-button[data-tooltip]::after { background: #27272a; }
+        .icon-button[data-tooltip][data-tooltip-pos="top"]::after { bottom: 100%; transform: translate(-50%, -6px); }
         .icon-button:hover[data-tooltip][data-tooltip-pos="top"]::after,
-        .icon-button:focus-visible[data-tooltip][data-tooltip-pos="top"]::after { opacity: 0.95; transform: translate(-50%, -12px); }
-        .icon-button[data-tooltip][data-tooltip-pos="bottom"]::after { top: 100%; transform: translate(-50%, 8px); }
+        .icon-button:focus-visible[data-tooltip][data-tooltip-pos="top"]::after { opacity: 0.95; transform: translate(-50%, -10px); }
+        .icon-button[data-tooltip][data-tooltip-pos="bottom"]::after { top: 100%; transform: translate(-50%, 6px); }
         .icon-button:hover[data-tooltip][data-tooltip-pos="bottom"]::after,
-        .icon-button:focus-visible[data-tooltip][data-tooltip-pos="bottom"]::after { opacity: 0.95; transform: translate(-50%, 12px); }
-        .playground-wrapper { display: flex; flex: 1; gap: 20px; overflow: hidden; }
-        .panel { background: var(--panel-bg); padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px var(--shadow); display: flex; flex-direction: column; width: 100%; border: 1px solid var(--panel-border); }
+        .icon-button:focus-visible[data-tooltip][data-tooltip-pos="bottom"]::after { opacity: 0.95; transform: translate(-50%, 10px); }
+        /* ===== Playground ===== */
+        .playground-wrapper { display: flex; flex: 1; gap: var(--sp-3); overflow: hidden; }
+        /* ===== Panels ===== */
+        .panel { background: var(--panel-bg); padding: var(--sp-4); border-radius: var(--radius-lg); display: flex; flex-direction: column; width: 100%; border: 1px solid var(--panel-border); position: relative; overflow: hidden; }
         .editor-panel { flex-basis: 48%; }
         .output-panel { flex-basis: 52%; }
-        .template-selector-wrapper { margin-bottom: 15px; display: flex; gap: 10px; align-items: center; }
-        /* Enhanced Template Selector (progressive) */
-        .template-selector-wrapper { position: relative; }
-        .template-selector-wrapper.floating-active label { transform: translateY(-12px) scale(.85); opacity:.85; }
-        .template-selector-wrapper label { transition: all .25s ease; transform-origin:left top; }
-        #template-selector.enhanced { background-clip: padding-box; }
-        .ts-panel { position:absolute; left:0; top:100%; width:100%; max-height:340px; overflow:auto; border:1px solid var(--panel-border); background:var(--panel-bg); border-radius:12px; margin-top:6px; box-shadow:0 10px 30px rgba(0,0,0,.12); padding:8px 0; z-index:1200; display:none; backdrop-filter:blur(4px); }
-        body.dark-mode .ts-panel, html.dark-mode .ts-panel { box-shadow:0 10px 30px rgba(0,0,0,.55); }
-        .ts-panel.open { display:block; animation:tsFade .18s ease; }
-        @keyframes tsFade { from{opacity:0; transform:translateY(-6px);} to{opacity:1; transform:translateY(0);} }
+        .editor-panel:focus-within { border-color: var(--muted); }
+        /* ===== Template Selector ===== */
+        .template-selector-wrapper { position: relative; margin-bottom: var(--sp-3); display: flex; gap: var(--sp-3); align-items: center; }
+        .template-selector-wrapper label { font-size: 13px; color: var(--muted); font-weight: 500; }
+        #template-selector { flex: 1; padding: 8px 36px 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--panel-border); font-size: 13px; font-weight: 500; background-color: var(--btn-bg); color: var(--fg); outline: none; cursor: pointer; transition: border-color var(--transition-fast); -webkit-appearance: none; appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
+        #template-selector:hover { border-color: var(--muted); }
+        #template-selector:focus, #template-selector:focus-visible { border-color: var(--fg); }
+        /* Template dropdown panel (custom) */
+        .ts-trigger { flex:1; padding:8px 36px 8px 12px; border-radius:var(--radius-sm); border:1px solid var(--panel-border); font-size:13px; font-weight:500; background-color:var(--btn-bg); color:var(--fg); outline:none; cursor:pointer; transition:border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast); text-align:left; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; position:relative; -webkit-appearance:none; appearance:none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; font-family: inherit; }
+        .ts-trigger:hover { border-color: var(--muted); }
+        .ts-trigger:focus, .ts-trigger:focus-visible { border-color: var(--fg); box-shadow: 0 0 0 3px var(--accent-subtle); }
+        .ts-trigger[data-open="true"] { border-color: var(--fg); box-shadow: 0 0 0 3px var(--accent-subtle); }
+        .ts-trigger .ts-trigger-placeholder { color: var(--muted); }
+        .template-selector-wrapper.compact .ts-trigger { padding:6px 34px 6px 10px; font-size:12px; }
+        #template-selector { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; display: none !important; visibility: hidden !important; pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important; }
+        .ts-panel { position:absolute; left:0; top:100%; width:100%; max-height:340px; overflow:auto; border:1px solid var(--panel-border); background:var(--panel-bg); border-radius:var(--radius-md); margin-top:6px; padding:8px 0; z-index:1200; display:none; box-shadow: 0 10px 30px -10px rgba(0,0,0,0.25), 0 0 0 1px var(--panel-border); }
+        .ts-panel.open { display:block; animation:tsFade .15s ease; }
+        @keyframes tsFade { from{opacity:0; transform:translateY(-4px);} to{opacity:1; transform:translateY(0);} }
         .ts-search-wrap { padding:0 12px 6px; }
-        .ts-search { width:100%; padding:8px 10px; font-size:13px; border:1px solid var(--panel-border); background:var(--panel-bg); color:var(--fg); border-radius:8px; outline:none; transition:border-color .2s, box-shadow .2s; }
-        .ts-search:focus { border-color:color-mix(in srgb,var(--link) 60%, var(--panel-border)); box-shadow:0 0 0 3px color-mix(in srgb,var(--link) 25%, transparent); }
+        .ts-search { width:100%; padding:7px 10px; font-size:13px; border:1px solid var(--panel-border); background:var(--btn-bg); color:var(--fg); border-radius:var(--radius-sm); outline:none; transition:border-color var(--transition-fast); }
+        .ts-search:focus { border-color:var(--fg); }
         .ts-options { list-style:none; margin:0; padding:0; }
-        .ts-option { padding:7px 14px; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:6px; line-height:1.3; transition:background .18s, color .18s; }
-        .ts-option[data-selected="true"] { background:linear-gradient(90deg, color-mix(in srgb,var(--link) 14%, var(--panel-bg)), transparent); font-weight:600; }
-        .ts-option:hover, .ts-option:focus { background:color-mix(in srgb,var(--link) 18%, var(--panel-bg)); color:var(--fg); outline:none; }
-        body.dark-mode .ts-option:hover { background:color-mix(in srgb,var(--link) 28%, var(--panel-bg)); }
+        .ts-option { padding:7px 14px; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:6px; line-height:1.3; transition:background .12s; }
+        .ts-option[data-selected="true"] { background:var(--accent-subtle); font-weight:600; }
+        .ts-option:hover, .ts-option:focus { background:var(--accent-subtle); outline:none; }
         .ts-empty { padding:10px 16px; font-size:12px; color:var(--muted); }
         .ts-footer { padding:6px 12px 4px; display:flex; justify-content:space-between; gap:8px; }
-        .ts-footer button { flex:1; font-size:12px; padding:6px 10px; border-radius:6px; border:1px solid var(--panel-border); background:var(--panel-bg); color:var(--fg); cursor:pointer; }
-        .ts-footer button:hover { background:color-mix(in srgb,var(--link) 18%, var(--panel-bg)); }
+        .ts-footer button { flex:1; font-size:12px; padding:6px 10px; border-radius:var(--radius-sm); border:1px solid var(--panel-border); background:var(--btn-bg); color:var(--fg); cursor:pointer; }
+        .ts-footer button:hover { background:var(--accent-subtle); }
         .ts-option mark { background:transparent; color:var(--link); font-weight:600; }
-        /* Compact size variant */
-        .template-selector-wrapper.compact #template-selector { padding:8px 38px 8px 10px; font-size:13px; }
-        .template-selector-wrapper.compact .ts-option { padding:6px 12px; }
-        #template-selector { flex: 1; padding: 10px 42px 10px 12px; border-radius: 10px; border: 1px solid var(--panel-border); font-size: 14px; background-color: var(--panel-bg); color: var(--fg); outline: none; cursor: pointer; transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; -webkit-appearance: none; appearance: none; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
-        #template-selector:hover { border-color: color-mix(in srgb, var(--link) 35%, var(--panel-border)); }
-        #template-selector:focus, #template-selector:focus-visible { border-color: color-mix(in srgb, var(--link) 55%, var(--panel-border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--link) 22%, transparent); }
-        /* Custom chevron arrow using layered gradients (works in light/dark) */
-        #template-selector { background-image:
-            linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-            linear-gradient(135deg, var(--muted) 50%, transparent 50%),
-            linear-gradient(to right, var(--panel-border), var(--panel-border));
-          background-position:
-            calc(100% - 20px) 50%,
-            calc(100% - 14px) 50%,
-            calc(100% - 32px) 50%;
-          background-size: 6px 6px, 6px 6px, 1px 60%;
-          background-repeat: no-repeat; }
-        /* High-contrast for dark mode hover/focus still uses var(--muted) */
-        body.dark-mode #template-selector, html.dark-mode #template-selector { box-shadow: 0 2px 10px rgba(0,0,0,0.35); }
-        /* Reduce shadow on touch devices */
-        @media (hover: none) { #template-selector { box-shadow: none; } }
-        #monaco-container { flex: 1; min-height: 150px; border: 1px solid var(--panel-border); border-radius: 6px; overflow: hidden; margin: 10px 0; background: var(--panel-bg); }
-        .button-wrapper { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
-        .action-button { flex: 1; min-width: 100px; max-width: 150px; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; white-space: nowrap; }
-        .action-button:disabled { opacity: 0.6; cursor: not-allowed; }
-        #run-button { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
-        #run-button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102,126,234,0.4); }
-        #clear-code-button { background: #ff6b6b; color: white; }
-        #clear-code-button:hover { background: #ee5a52; }
-        #clear-output-button { background: #6c757d; color: white; }
-        #clear-output-button:hover { background: #5a6268; }
-        #format-button { background: #20c997; color: white; }
-        #format-button:hover { background: #1ba88b; }
-        #share-button { background: #4ecdc4; color: white; }
-        #share-button:hover { background: #45b7b0; }
-        /* NEW util buttons */
-        #import-data-button { background:#ffb703; color:#111; }
-        #import-data-button:hover { background:#f2a900; }
-        #download-code-button { background:#009688; color:#fff; }
-        #download-code-button:hover { background:#00897b; }
-        #copy-output-button { background:#3f51b5; color:#fff; }
-        #copy-output-button:hover { background:#3949ab; }
-        .output-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .output-header h3 { margin: 0; }
-        .output-stats { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
-        #output { flex: 1; border: 1px solid var(--panel-border); background: var(--output-bg); color: var(--fg); padding: 10px; white-space: pre-wrap; word-wrap: break-word; border-radius: 6px; overflow-y: auto; font-family: 'JetBrains Mono', 'LXGW WenKai Screen', monospace; font-size: 17px; line-height: 1.7; letter-spacing: 0.5px; }
-        .status-indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
-        .status-idle { background: #6c757d; }
-        .status-running { background: #ffc107; animation: pulse 1s infinite; }
-        .status-success { background: #28a745; }
-        .status-error { background: #dc3545; }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
-        .notification { position: fixed; bottom: 20px; right: 20px; background: var(--panel-bg); color: var(--fg); padding: 15px 20px; border-radius: 6px; border:1px solid var(--panel-border); box-shadow: 0 4px 12px var(--shadow); animation: slideIn 0.2s ease-out; max-width: 300px; z-index: 1000; }
-        @keyframes slideIn { from{transform:translateX(400px);opacity:0} to{transform:translateX(0);opacity:1} }
-        /* Added missing slideOut for Notification.hide animation */
-        @keyframes slideOut { from{transform:translateX(0);opacity:1} to{transform:translateX(400px);opacity:0} }
-        .notification.success { border-left: 4px solid #28a745; }
-        .notification.error { border-left: 4px solid #dc3545; }
-        .notification.info { border-left: 4px solid #17a2b8; }
-        .notification.warning { border-left: 4px solid #ffc107; }
-        .modal { display:none; position:fixed; inset:0; background: rgba(0,0,0,0.5); z-index:2000; justify-content:center; align-items:center; }
-        .modal.active { display:flex; }
-        .modal-content { background: var(--panel-bg); color: var(--fg); padding: 30px; border-radius: 8px; max-width: 700px; width: 92%; box-shadow: 0 10px 40px var(--shadow); border:1px solid var(--panel-border); }
-        .modal-header { font-size: 18px; font-weight: bold; margin-bottom: 15px; }
-        .modal-body { margin-bottom: 20px; }
-        .modal-footer { display: flex; gap: 10px; justify-content: flex-end; }
-        .modal-footer button { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
-        .modal-footer .btn-primary { background: #3498db; color: white; }
-        .modal-footer .btn-secondary { background: #6c757d; color: white; }
-        @media (max-width: 768px) { #app-container{padding:10px;gap:10px} .playground-wrapper{flex-direction:column;gap:10px} .panel{padding:10px} h2{font-size:20px} .template-selector-wrapper{flex-direction:column} .action-button{font-size:12px;min-width:80px} #output{font-size:14px} header{flex-direction:column;gap:10px;align-items:flex-start} .header-actions{width:100%;justify-content:space-between}}
-        .badge { display:inline-block; padding:2px 6px; font-size:12px; color:#fff; background:#6c757d; border-radius:10px; margin-left:8px; }
+        .template-selector-wrapper.compact #template-selector { /* intentionally left empty — inherit the !important hide rule above */ }
+        .template-selector-wrapper.compact .ts-option { padding:5px 12px; }
+        /* ===== Monaco Container ===== */
+        #monaco-container { flex: 1; min-height: 120px; border: 1px solid var(--panel-border); border-radius: var(--radius-md); overflow: hidden; margin: var(--sp-2) 0; background: var(--panel-bg); }
+        /* ===== Toolbar / Action Bar (shadcn-style) ===== */
+        .button-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding-top: var(--sp-3);
+            border-top: 1px solid var(--panel-border);
+            margin-top: auto;
+        }
+        .action-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            padding: 6px 14px;
+            border: 1px solid var(--panel-border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 12.5px;
+            font-weight: 500;
+            font-family: var(--font-sans);
+            line-height: 1;
+            white-space: nowrap;
+            background: transparent;
+            color: var(--fg);
+            transition: all var(--transition-fast);
+            user-select: none;
+        }
+        .action-button svg {
+            width: 14px; height: 14px;
+            fill: none; stroke: currentColor;
+            stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+            flex-shrink: 0;
+        }
+        .action-button:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+        .action-button:hover:not(:disabled) { background: var(--accent-subtle); border-color: var(--muted); }
+        .action-button:active:not(:disabled) { background: var(--accent-muted); }
+        .action-button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+        /* Primary — solid dark */
+        #run-button { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
+        #run-button:hover:not(:disabled) { background: var(--accent-light); border-color: var(--accent-light); }
+        /* ===== Output ===== */
+        .output-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--sp-2); }
+        .output-header h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--fg); }
+        .output-stats { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: var(--sp-2); }
+        #output { flex: 1; border: 1px solid var(--panel-border); background: var(--output-bg); color: var(--fg); padding: var(--sp-3) var(--sp-4); white-space: pre-wrap; word-wrap: break-word; border-radius: var(--radius-md); overflow-y: auto; font-family: var(--font-mono); font-size: 14px; line-height: 1.6; }
+        /* ===== Status Indicator ===== */
+        .status-indicator { display: inline-flex; align-items: center; justify-content: center; width: 8px; height: 8px; border-radius: var(--radius-full); margin-right: 4px; }
+        .status-idle { background: var(--muted); }
+        .status-running { background: var(--fg); animation: pulse 1.2s ease infinite; }
+        .status-success { background: #22c55e; }
+        .status-error { background: #ef4444; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+        /* ===== Notifications ===== */
+        .notification { position: fixed; bottom: var(--sp-5); right: var(--sp-5); background: var(--panel-bg); color: var(--fg); padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-md); border: 1px solid var(--panel-border); animation: slideIn 0.2s ease; max-width: 280px; z-index: 1000; font-size: 13px; font-weight: 500; }
+        @keyframes slideIn { from{transform:translateX(280px);opacity:0} to{transform:translateX(0);opacity:1} }
+        @keyframes slideOut { from{transform:translateX(0);opacity:1} to{transform:translateX(280px);opacity:0} }
+        .notification.success { border-left: 3px solid #22c55e; }
+        .notification.error { border-left: 3px solid #ef4444; }
+        .notification.info { border-left: 3px solid var(--link); }
+        .notification.warning { border-left: 3px solid #f59e0b; }
+        /* ===== Modals ===== */
+        .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:2000; justify-content:center; align-items:center; }
+        .dark-mode .modal { background:rgba(0,0,0,0.6); }
+        .modal.active { display:flex; animation: modalFadeIn 0.15s ease; }
+        @keyframes modalFadeIn { from{opacity:0} to{opacity:1} }
+        .modal-content { background: var(--panel-bg); color: var(--fg); padding: var(--sp-6); border-radius: var(--radius-xl); max-width: 700px; width: 92%; border: 1px solid var(--panel-border); position:relative; overflow:hidden; }
+        .modal-header { font-size: 15px; font-weight: 600; margin-bottom: var(--sp-3); }
+        .modal-body { margin-bottom: var(--sp-4); }
+        .modal-footer { display: flex; gap: var(--sp-2); justify-content: flex-end; }
+        .modal-footer button { padding: 7px 16px; border: 1px solid var(--panel-border); border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; font-weight: 500; transition: background var(--transition-fast); background: var(--btn-bg); color: var(--btn-fg); }
+        .modal-footer .btn-primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+        .modal-footer .btn-primary:hover { background: var(--accent-light); border-color: var(--accent-light); }
+        .modal-footer .btn-secondary { background: var(--btn-bg); color: var(--btn-fg); }
+        .modal-footer .btn-secondary:hover { background: var(--accent-subtle); }
+        /* ===== Badge ===== */
+        .badge { display:inline-block; padding:2px 8px; font-size:11px; color:var(--bg); background:var(--fg); border-radius:var(--radius-sm); margin-left:6px; font-weight:500; }
         .badge.hidden { display:none; }
-        .monaco-editor .error-line-decoration { background: rgba(220, 53, 69, 0.15); }
-        .monaco-editor .error-line-glyph { background: #dc3545; width: 4px; }
-        .tiny-button { font-size:12px; padding:4px 8px; border-radius: 6px; border:1px solid var(--panel-border); background: var(--panel-bg); color: var(--fg); cursor:pointer; }
-        /* Scroll fixes for flex layouts */
+        /* ===== Monaco Error Decorations ===== */
+        .monaco-editor .error-line-decoration { background: rgba(239,68,68,0.1); }
+        .monaco-editor .error-line-glyph { background: #ef4444; width: 3px; }
+        /* ===== Tiny Buttons ===== */
+        .tiny-button { font-size:11px; padding:4px 10px; border-radius: var(--radius-sm); border:1px solid var(--panel-border); background: var(--btn-bg); color: var(--btn-fg); cursor:pointer; transition: background var(--transition-fast), border-color var(--transition-fast); font-weight: 500; }
+        .tiny-button:hover { border-color: var(--muted); background: var(--accent-subtle); }
+        .tiny-button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+        /* ===== Layout / Scroll Fixes ===== */
         .playground-wrapper, .panel, .editor-panel, .output-panel { min-height: 0; }
         #monaco-container, #output { min-height: 0; }
         #output { overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; scrollbar-gutter: stable; }
-        /* Global scrollbar styling (Firefox) */
+        /* ===== Scrollbar System ===== */
         * { scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-bg); scrollbar-width: thin; }
-        /* WebKit scrollbars */
-        ::-webkit-scrollbar { width: 10px; height: 10px; }
-        ::-webkit-scrollbar-track { background: var(--scrollbar-bg); }
-        ::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb); border-radius: 8px; border: 2px solid var(--scrollbar-bg); }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb); border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
-        ::-webkit-scrollbar-corner { background: var(--scrollbar-bg); }
-        /* Monaco custom scrollbars */
-        .monaco-scrollable-element > .scrollbar.vertical { width: 10px !important; }
-        .monaco-scrollable-element > .scrollbar.horizontal { height: 10px !important; }
+        ::-webkit-scrollbar-corner { background: transparent; }
+        .monaco-scrollable-element > .scrollbar.vertical { width: 8px !important; }
+        .monaco-scrollable-element > .scrollbar.horizontal { height: 8px !important; }
         .monaco-scrollable-element > .scrollbar { background: transparent !important; }
-        .monaco-scrollable-element > .scrollbar > .slider { background: var(--scrollbar-thumb) !important; border-radius: 8px !important; }
+        .monaco-scrollable-element > .scrollbar > .slider { background: var(--scrollbar-thumb) !important; border-radius: 4px !important; }
         .monaco-scrollable-element > .scrollbar > .slider:hover { background: var(--scrollbar-thumb-hover) !important; }
-        /* Zoom hint bubble */
-        .zoom-hint { position: fixed; right: 20px; bottom: 80px; background: var(--panel-bg); color: var(--fg); border:1px solid var(--panel-border); box-shadow: 0 4px 12px var(--shadow); padding: 6px 10px; border-radius: 6px; font-size: 12px; z-index: 1200; opacity: 0; transform: translateY(10px); transition: opacity .15s ease, transform .15s ease; }
-        .zoom-hint.show { opacity: .95; transform: translateY(0); }
-        /* Force editor IME default to English (best-effort) */
+        /* ===== IME ===== */
         .monaco-editor .inputarea { ime-mode: inactive; }
-        /* Data Manager list */
-        .file-list { max-height: 260px; overflow:auto; border:1px dashed var(--panel-border); padding:8px; border-radius:6px; }
-        .file-item { display:flex; justify-content:space-between; align-items:center; padding:6px 8px; border-bottom:1px solid var(--panel-border); font-family: ui-monospace, "JetBrains Mono", monospace; font-size:12px; }
+        /* ===== Data Manager ===== */
+        .file-list { max-height: 260px; overflow:auto; border:1px solid var(--panel-border); padding:var(--sp-2); border-radius:var(--radius-sm); }
+        .file-item { display:flex; justify-content:space-between; align-items:center; padding:var(--sp-2) var(--sp-2); border-bottom:1px solid var(--panel-border); font-family: var(--font-mono); font-size:12px; }
         .file-item:last-child { border-bottom:none; }
         .file-item .name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70%; }
-        .file-item .name.clickable { cursor:pointer; color: var(--link); text-decoration: underline; text-decoration-color: transparent; }
+        .file-item .name.clickable { cursor:pointer; color: var(--link); text-decoration: underline; text-decoration-color: transparent; transition: text-decoration-color var(--transition-fast); }
         .file-item .name.clickable:hover { text-decoration-color: currentColor; color: var(--link-hover); }
-        .file-item .ops { display:flex; gap:6px; }
-        /* Preview editor container, styled like the code editor */
-        #preview-editor-container { /* height will be set dynamically */ border: 1px solid var(--panel-border); border-radius:6px; overflow: hidden; background: var(--panel-bg); }
-        /* Virtual CSV container styled similar to editor */
-        #csv-virtual-container { border: 1px solid var(--panel-border); border-radius:6px; background: var(--panel-bg); font-family: 'JetBrains Mono', 'LXGW WenKai Screen', monospace; font-size: 17px; line-height: 1.7; overflow: auto; display: none; }
+        .file-item .ops { display:flex; gap:var(--sp-2); }
+        #preview-editor-container { border: 1px solid var(--panel-border); border-radius:var(--radius-sm); overflow: hidden; background: var(--panel-bg); }
+        #csv-virtual-container { border: 1px solid var(--panel-border); border-radius:var(--radius-sm); background: var(--panel-bg); font-family: var(--font-mono); font-size: 15px; line-height: 1.6; overflow: auto; display: none; }
         .csv-rows { position: relative; }
         .csv-row { display: grid; border-bottom: 1px solid var(--panel-border); white-space: pre; }
         .csv-row.header { position: sticky; top: 0; z-index: 2; background: var(--panel-bg); border-bottom: 2px solid var(--panel-border); font-weight: 600; }
         .csv-cell { padding: 2px 8px; overflow: hidden; text-overflow: ellipsis; }
-        .site-footer { margin-top:auto; padding:12px 0 10px; font-size:13px; text-align:center; color: var(--muted); border-top:1px solid var(--panel-border); letter-spacing:0.5px; }
-        .site-footer .partner-link { color: var(--link); font-weight:600; text-decoration:none; position:relative; padding:0 4px; }
-        .site-footer .partner-link::after { content:''; position:absolute; left:0; bottom:-3px; width:100%; height:2px; background:linear-gradient(90deg,#66a6ff,#89f7fe); transform:scaleX(0); transform-origin:left; transition:transform .35s ease; border-radius:2px; }
-        .site-footer .partner-link:hover::after { transform:scaleX(1); }
-        body.dark-mode .site-footer .partner-link::after, html.dark-mode .site-footer .partner-link::after { background:linear-gradient(90deg,#4e8df2,#5bd4e5); }
-        body.dark-mode .site-footer { color: var(--muted); }
-        /* Plot gallery for matplotlib outputs */
-        .plot-gallery { margin-top: 10px; }
-        .plot-gallery img { display:block; max-width:100%; height:auto; border:1px solid var(--panel-border); border-radius:6px; background: var(--panel-bg); box-shadow: 0 2px 6px var(--shadow); margin:8px 0; }
+        /* ===== Footer ===== */
+        .site-footer { margin-top:auto; padding:var(--sp-3) 0 var(--sp-2); font-size:11px; text-align:center; color: var(--muted); border-top:1px solid var(--panel-border); }
+        .site-footer .partner-link { color: var(--link); font-weight:500; text-decoration:none; padding:0 4px; }
+        .site-footer .partner-link:hover { text-decoration: underline; }
+        /* ===== Responsive ===== */
+        @media (min-width:769px) and (max-width:1024px) { .editor-panel{flex-basis:45%} .output-panel{flex-basis:55%} .action-button{padding:5px 10px;font-size:12px} }
+        @media (max-width: 768px) {
+            #app-container{padding:var(--sp-2) var(--sp-3);gap:var(--sp-2)}
+            .playground-wrapper{flex-direction:column;gap:var(--sp-2)}
+            .panel{padding:var(--sp-3)}
+            h2{font-size:15px}
+            .template-selector-wrapper{flex-direction:column;gap:var(--sp-1)}
+            .button-wrapper{flex-wrap:wrap;gap:4px}
+            .action-button{font-size:11.5px;padding:5px 10px}
+            #output{font-size:13px;padding:var(--sp-2) var(--sp-3)}
+            header{flex-direction:column;gap:var(--sp-2);align-items:flex-start;padding:var(--sp-3)}
+            .header-actions{width:100%;justify-content:space-between}
+            .icon-button{width:32px;height:32px}
+            .icon-button svg{width:16px;height:16px}
+            .modal-content{padding:var(--sp-4);border-radius:var(--radius-lg)}
+        }
+        @media (max-width: 480px) {
+            #app-container{padding:var(--sp-1) var(--sp-2)}
+            .panel{padding:var(--sp-2)}
+            .button-wrapper{gap:4px}
+            .action-button{padding:4px 8px;font-size:11px}
+            #template-selector{font-size:12px;padding:7px 32px 7px 8px}
+            .ts-trigger{font-size:12px;padding:7px 32px 7px 8px}
+            header{padding:var(--sp-2) var(--sp-3)}
+            h2{font-size:14px}
+        }
+        /* Zoom hint */
+        .zoom-hint { position: fixed; right: 20px; bottom: 80px; background: var(--panel-bg); color: var(--fg); border:1px solid var(--panel-border); padding: 4px 8px; border-radius: var(--radius-sm); font-size: 11px; z-index: 1200; opacity: 0; transform: translateY(8px); transition: opacity var(--transition-fast), transform var(--transition-fast); }
+        .zoom-hint.show { opacity: .9; transform: translateY(0); }
     </style>
 </head>
 <body class="loading">
-<div id="loader-overlay"><div class="loader"></div><p id="loading-text">正在加载…</p><p id="loading-progress"></p></div>
+<noscript>
+    <div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0a0a0a;color:#fafafa;font-family:system-ui,sans-serif;padding:24px;text-align:center;z-index:10000;">
+        <div style="max-width:420px;">
+            <h1 style="margin:0 0 12px;font-size:20px;">需要启用 JavaScript</h1>
+            <p style="margin:0;font-size:14px;color:#a1a1aa;line-height:1.6;">枫下代码是基于 WebAssembly + Web Worker 的 Python 运行环境，请先在浏览器中启用 JavaScript 后再访问。</p>
+        </div>
+    </div>
+</noscript>
+<div id="loader-overlay"><div class="loader-ring"></div><p id="loading-text">正在加载…</p><p id="loading-progress"></p></div>
 <div id="app-container">
     <header>
-        <h2>🐍 枫下代码 - Python</h2>
+        <h2>枫下代码</h2>
         <div class="header-actions">
             <span id="bg-install-badge" class="badge hidden" aria-live="polite">后台安装中…</span>
-            <button class="icon-button" id="stop-button" data-tooltip="停止">⏹️</button>
-            <button class="icon-button" id="settings-button" data-tooltip="设置">⚙️</button>
-            <button class="icon-button" id="dark-mode-button" data-tooltip="深色模式">🌙</button>
-            <button class="icon-button" id="help-button" data-tooltip="帮助">❓</button>
+            <button class="icon-button" id="stop-button" data-tooltip="停止" data-tooltip-pos="bottom" aria-label="停止运行"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
+            <button class="icon-button" id="settings-button" data-tooltip="设置" data-tooltip-pos="bottom" aria-label="设置"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+            <button class="icon-button" id="dark-mode-button" data-tooltip="深色模式" data-tooltip-pos="bottom" aria-label="切换主题"><svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+            <button class="icon-button" id="help-button" data-tooltip="帮助" data-tooltip-pos="bottom" aria-label="帮助"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button>
         </div>
     </header>
     <div class="playground-wrapper">
         <div class="panel editor-panel">
             <div class="template-selector-wrapper">
-                <label for="template-selector">📚 示例代码:</label>
+                <label for="template-selector">示例代码</label>
                 <select id="template-selector"></select>
             </div>
             <div id="monaco-container"></div>
             <div class="button-wrapper">
-                <button id="run-button" class="action-button">▶️ 运行</button>
-                <button id="format-button" class="action-button">📐 格式化</button>
-                <button id="share-button" class="action-button">🔗 分享</button>
-                <button id="import-data-button" class="action-button">📤 导入数据</button>
-                <button id="download-code-button" class="action-button">📥 下载代码</button>
-                <!-- moved copy/clear output to output header -->
-                <button id="clear-code-button" class="action-button">🗑️ 清空代码</button>
+                <button id="run-button" class="action-button"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>运行</button>
+                <button id="format-button" class="action-button"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>格式化</button>
+                <button id="share-button" class="action-button"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>分享</button>
+                <button id="import-data-button" class="action-button"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>导入数据</button>
+                <button id="download-code-button" class="action-button"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>下载代码</button>
+                <button id="clear-code-button" class="action-button"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>清空</button>
             </div>
             <input id="upload-data-input" type="file" multiple accept=".csv,.txt,.tsv,.json,.xlsx,.xls" style="display:none" />
         </div>
         <div class="panel output-panel">
             <div class="output-header">
-                <h3>📤 输出:</h3>
+                <h3>输出</h3>
                 <div class="output-stats">
                     <span class="status-indicator status-idle"></span>
                     <span id="exec-time">就绪</span>
@@ -321,6 +408,7 @@
         <div class="modal-body">
             <p>分享链接已复制到剪贴板:</p>
             <input type="text" id="share-url" readonly aria-label="分享链接" style="width: 100%; padding: 8px; border: 1px solid var(--panel-border); border-radius: 6px; font-family: monospace; font-size: 12px; background: var(--panel-bg); color: var(--fg);">
+            <p id="share-info" style="margin-top:8px;font-size:12px;color:var(--muted);"></p>
         </div>
         <div class="modal-footer">
             <button class="btn-secondary" onclick="document.getElementById('share-modal').classList.remove('active')">关闭</button>
@@ -334,9 +422,9 @@
         <div class="modal-body">
             <h4>快速入门</h4>
             <ul>
-                <li><strong>运行代码</strong>: 点击 ▶️ 运行 或按 Ctrl+Enter</li>
-                <li><strong>格式化</strong>: 点击 📐 格式化 自动整理代码</li>
-                <li><strong>分享</strong>: 点击 🔗 分享 生成分享链接</li>
+                <li><strong>运行代码</strong>: 点击「运行」按钮或按 Ctrl+Enter</li>
+                <li><strong>格式化</strong>: 点击「格式化」按钮自动整理代码</li>
+                <li><strong>分享</strong>: 点击「分享」按钮生成分享链接</li>
                 <li><strong>代码提示</strong>: 输入 <code>.</code> 触发自动补全</li>
             </ul>
         </div>
@@ -768,6 +856,24 @@
         global.LZString=LZString;
     })(window);
 
+    // Decode share payload: try localStorage (short ID) → LZString → raw JSON
+    function tryDecodePayload(pay){
+        if(!pay) return null;
+        // 1. localStorage short ID (same-browser, 7-day expiry)
+        try{
+            const stored = ShareStore.load(pay);
+            if(stored) return stored;
+        }catch{}
+        // 2. LZString compressed (cross-device, embedded in URL)
+        try{
+            const json = window.LZString && window.LZString.decompressFromEncodedURIComponent ? window.LZString.decompressFromEncodedURIComponent(pay) : null;
+            if(json){ const obj = JSON.parse(json); if(obj && typeof obj.c === 'string') return obj; }
+        }catch{}
+        // 3. Raw JSON (unlikely but safe)
+        try{ const obj = JSON.parse(pay); if(obj && typeof obj.c === 'string') return obj; }catch{}
+        return null;
+    }
+
     // Helper: build short permalink /s/<payload> from current location
     function buildShortPermalink(state){
         try{
@@ -818,14 +924,14 @@
     }
 
     const CONFIG = { EDITOR:{ fontSize:{desktop:18,mobile:16}, lineHeight:{desktop:28,mobile:24}, debounceMs:1000, font:"'JetBrains Mono', 'LXGW WenKai Screen', monospace", lineHeightFactor: 1.7 }, PACKAGES:{ skipStubs:['numpy'], debounceMs:1500, slowLibraries:['pandas','numpy','scipy','sklearn','tensorflow','torch','cv2','PIL'] }, COMPLETION:{ triggerChars:['.'], cacheExpireMs:1000, requestTimeoutMs:10000, maxSuggestions:30, warmupTimeoutMs:8000 }, RUNTIME:{ executionTimeoutMs:30000, mobileBreakpoint:768 }, FORBIDDEN_MODULES:['subprocess','os.system','__import__','eval','exec'] };
-    const APP_VERSION = '2025-11-06-1';
+    const APP_VERSION = '2025-11-07-1';
 
     class WorkerClient { constructor(workerPath, outputEl, progressEl){ this.workerPath=workerPath; this.worker=null; this.reqId=1; this.pending=new Map(); this.outputEl=outputEl; this.progressEl=progressEl; this.indexURL='pyodide/'; this.jediReady=false; this.interruptView=null; }
         async init(indexURL='pyodide/'){ this.indexURL=indexURL; return new Promise((res,rej)=>{ try{ const url = `${(this.workerPath||'py-worker.js')}?v=${encodeURIComponent(APP_VERSION)}`; this.worker=new Worker(url); this.worker.onmessage=(e)=>this._onMessage(e); res(); }catch(e){ rej(e); } }); }
         async restart(){ try{ this.worker && this.worker.terminate(); }catch{} await this.init(this.indexURL); let resp=await this.request('load',{ indexURL:this.indexURL, prefer:'cdn' }); if(!resp||!resp.success) throw new Error(resp?.error||'加载 Pyodide 失败'); if(this.jediReady){ resp=await this.request('init_jedi',{}); if(!resp||!resp.success) console.warn('Jedi 重新初始化��败:',resp?.error); } if(this.interruptView){ try{ await this.request('setup_interrupt',{ sab:this.interruptView.buffer }); }catch{} } }
         setInterruptView(view){ this.interruptView=view; }
         interrupt(){ if(this.interruptView){ Atomics.store(this.interruptView,0,2); Atomics.notify(this.interruptView,0); return true; } return false; }
-        _onMessage(e){ const msg=e.data||{}; const {id,type,payload,text}=msg; switch(type){ case 'response':{ const r=this.pending.get(id); if(r){ this.pending.delete(id); r(payload); } break; } case 'stdout':{ if(this.outputEl){ this.outputEl.textContent += (this.outputEl.textContent? '\n':'') + (text??''); } break; } case 'stderr':{ if(this.outputEl){ this.outputEl.textContent += (this.outputEl.textContent? '\n':'') + (text??''); } break; } case 'progress':{ if(this.progressEl){ this.progressEl.textContent = msg.payload ? `${msg.text} ${msg.payload}` : (msg.text||''); } try{ if(msg.text){ const lower=String(msg.text).toLowerCase(); if(lower.includes('补全')||lower.includes('jedi')){ Notification.show(`🧠 ${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2500); } else if(lower.includes('安装')){ Notification.show(`📦 ${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2500); } else if(lower.includes('数据')){ Notification.show(`🗂️ ${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2000); } }
+        _onMessage(e){ const msg=e.data||{}; const {id,type,payload,text}=msg; switch(type){ case 'response':{ const r=this.pending.get(id); if(r){ this.pending.delete(id); r(payload); } break; } case 'stdout':{ if(this.outputEl){ this.outputEl.textContent += (this.outputEl.textContent? '\n':'') + (text??''); } break; } case 'stderr':{ if(this.outputEl){ this.outputEl.textContent += (this.outputEl.textContent? '\n':'') + (text??''); } break; } case 'progress':{ if(this.progressEl){ this.progressEl.textContent = msg.payload ? `${msg.text} ${msg.payload}` : (msg.text||''); } try{ if(msg.text){ const lower=String(msg.text).toLowerCase(); if(lower.includes('补全')||lower.includes('jedi')){ Notification.show(`${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2500); } else if(lower.includes('安装')){ Notification.show(`${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2500); } else if(lower.includes('数据')){ Notification.show(`${msg.text}${msg.payload?('：'+msg.payload):''}`,'info',2000); } }
         }catch(e){}
             break; } default: break; } }
         request(action,payload={}){ return new Promise((res,rej)=>{ if(!this.worker) return rej(new Error('Worker not initialized')); const id=this.reqId++; this.pending.set(id,(resp)=>res(resp)); this.worker.postMessage({ id,type:'request',action,payload }); setTimeout(()=>{ if(this.pending.has(id)){ this.pending.delete(id); rej(new Error(`Worker request '${action}' timeout`)); } }, Math.max(CONFIG.COMPLETION.requestTimeoutMs, CONFIG.RUNTIME.executionTimeoutMs)); }); }
@@ -855,6 +961,61 @@
         static getEditorLineHeight(){ try{ const v=localStorage.getItem(this.KEY_EDITOR_LINE); return v? Number(v) : null; }catch{ return null; } }
         static setOutputFontSize(n){ try{ localStorage.setItem(this.KEY_OUTPUT_FONT,String(n)); }catch{} }
         static getOutputFontSize(){ try{ const v=localStorage.getItem(this.KEY_OUTPUT_FONT); return v? Number(v) : null; }catch{ return null; } }
+    }
+
+    // ShareStore: localStorage-based temporary code share with expiration.
+    // Generates short IDs so share URLs stay compact regardless of code size.
+    class ShareStore {
+        static PREFIX = 'pys_';
+        static EXPIRE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+        static MAX_ENTRIES = 30;
+        static generateId(){ return Date.now().toString(36) + Math.random().toString(36).substring(2,6); }
+        static save(payloadObj){
+            try{
+                const id = this.generateId();
+                const entry = JSON.stringify({ p: payloadObj, e: Date.now() + this.EXPIRE_MS });
+                try{ localStorage.setItem(this.PREFIX + id, entry); }
+                catch(qErr){ // quota exceeded — purge expired then retry
+                    this.cleanup();
+                    try{ localStorage.setItem(this.PREFIX + id, entry); }catch{ return null; }
+                }
+                this.cleanup();
+                return id;
+            }catch{ return null; }
+        }
+        static load(id){
+            if(!id) return null;
+            try{
+                const raw = localStorage.getItem(this.PREFIX + id);
+                if(!raw) return null;
+                const entry = JSON.parse(raw);
+                if(!entry || !entry.e || !entry.p){ try{ localStorage.removeItem(this.PREFIX + id); }catch{} return null; }
+                if(Date.now() > entry.e){ try{ localStorage.removeItem(this.PREFIX + id); }catch{} return null; }
+                return entry.p;
+            }catch{ return null; }
+        }
+        static cleanup(){
+            try{
+                const now = Date.now();
+                const valid = [];
+                for(let i = localStorage.length - 1; i >= 0; i--){
+                    const k = localStorage.key(i);
+                    if(!k || !k.startsWith(this.PREFIX)) continue;
+                    try{
+                        const v = JSON.parse(localStorage.getItem(k));
+                        if(!v || !v.e || now > v.e){ localStorage.removeItem(k); continue; }
+                        valid.push({ k, e: v.e });
+                    }catch{ try{ localStorage.removeItem(k); }catch{} }
+                }
+                if(valid.length > this.MAX_ENTRIES){
+                    valid.sort((a,b) => a.e - b.e);
+                    while(valid.length > this.MAX_ENTRIES){
+                        const oldest = valid.shift();
+                        try{ localStorage.removeItem(oldest.k); }catch{}
+                    }
+                }
+            }catch{}
+        }
     }
 
     class EditorManager { constructor(containerId, initialCode){ this.container=document.getElementById(containerId); this.editor=null; this.initialCode=initialCode; this.changeListeners=[]; this._lastShownFs=null; }
@@ -915,7 +1076,7 @@
 
     class PackageManager { constructor(workerClient, outputElement){ this.workerClient=workerClient; this.outputElement=outputElement; this.installing=false; this.installDebounce=null; this.badgeEl=document.getElementById('bg-install-badge'); }
         async findNewPackages(code){ try{ const resp=await this.workerClient.request('find_packages',{code}); if(resp&&resp.success){ return new Set(resp.packages||[]);} }catch(e){ console.warn('findNewPackages failed:',e);} return new Set(); }
-        async installPackages(pkgsToInstall,isBackground=false){ if(!pkgsToInstall||pkgsToInstall.size===0||this.installing) return; this.installing=true; try{ const list=Array.from(pkgsToInstall); if(isBackground&&this.badgeEl) this.badgeEl.classList.remove('hidden'); if(!isBackground&&this.outputElement){ this.outputElement.textContent=`🚀 正在安装模块: ${list.join(', ')}...`; } const resp=await this.workerClient.request('install',{ packages:list }); if(!resp||!resp.success){ const msg=(resp&&resp.error)?resp.error:'安装失败'; if(!isBackground&&this.outputElement) this.outputElement.textContent=`⚠️ 模块安装提示: ${msg}`; if(!isBackground) throw new Error(msg); } else if(!isBackground&&this.outputElement){ this.outputElement.textContent=`✅ 模块 ${list.join(', ')} 安装成功`; } } finally{ if(this.badgeEl) this.badgeEl.classList.add('hidden'); this.installing=false; } }
+        async installPackages(pkgsToInstall,isBackground=false){ if(!pkgsToInstall||pkgsToInstall.size===0||this.installing) return; this.installing=true; try{ const list=Array.from(pkgsToInstall); if(isBackground&&this.badgeEl) this.badgeEl.classList.remove('hidden'); if(!isBackground&&this.outputElement){ this.outputElement.textContent=`正在安装模块: ${list.join(', ')}...`; } const resp=await this.workerClient.request('install',{ packages:list }); if(!resp||!resp.success){ const msg=(resp&&resp.error)?resp.error:'安装失败'; if(!isBackground&&this.outputElement) this.outputElement.textContent=`模块安装提示: ${msg}`; if(!isBackground) throw new Error(msg); } else if(!isBackground&&this.outputElement){ this.outputElement.textContent=`模块 ${list.join(', ')} 安装成功`; } } finally{ if(this.badgeEl) this.badgeEl.classList.add('hidden'); this.installing=false; } }
         debounceInstall(code){ clearTimeout(this.installDebounce); this.installDebounce=setTimeout(async()=>{ if(!this.installing){ const pkgs=await this.findNewPackages(code); if(pkgs.size>0) await this.installPackages(pkgs,true); } }, CONFIG.PACKAGES.debounceMs); }
     }
 
@@ -936,9 +1097,9 @@
                 /\beval\s*\(/,
                 /\bexec\s*\(/
             ];
-            for(const re of bannedPatterns){ if(re.test(code)) throw new Error('⚠️ 不允许使用高危 API 或模块'); }
+            for(const re of bannedPatterns){ if(re.test(code)) throw new Error('不允许使用高危 API 或模块'); }
         }
-        async execute(code){ this.validateCode(code); const start=Date.now(); const controller=this.workerClient.request('execute',{ code }); const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error(`执行超时 (>${CONFIG.RUNTIME.executionTimeoutMs/1000}秒)`)), CONFIG.RUNTIME.executionTimeoutMs)); try{ const resp=await Promise.race([controller, timeout]); if(resp && resp.success){ return { success:true, output: resp.output||'(无输出)', time: resp.time || (((Date.now()-start)/1000).toFixed(3)), images: Array.isArray(resp.images)? resp.images: [] }; } const msg=(resp&&resp.output)||(resp&&resp.error)||'执行失败'; return { success:false, output:`❌ 错误:\n${msg}`, time: resp?.time || (((Date.now()-start)/1000).toFixed(3)), line: resp?.line ?? null, col: resp?.col ?? null }; } catch(e){ return { success:false, output:`❌ 错误:\n${e.message}`, time: ((Date.now()-start)/1000).toFixed(3) }; } }
+        async execute(code){ this.validateCode(code); const start=Date.now(); const controller=this.workerClient.request('execute',{ code }); const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error(`执行超时 (>${CONFIG.RUNTIME.executionTimeoutMs/1000}秒)`)), CONFIG.RUNTIME.executionTimeoutMs)); try{ const resp=await Promise.race([controller, timeout]); if(resp && resp.success){ return { success:true, output: resp.output||'(无输出)', time: resp.time || (((Date.now()-start)/1000).toFixed(3)) }; } const msg=(resp&&resp.output)||(resp&&resp.error)||'执行失败'; return { success:false, output:`错误:\n${msg}`, time: resp?.time || (((Date.now()-start)/1000).toFixed(3)), line: resp?.line ?? null, col: resp?.col ?? null }; } catch(e){ return { success:false, output:`错误:\n${e.message}`, time: ((Date.now()-start)/1000).toFixed(3) }; } }
     }
 
     class PythonREPL {
@@ -952,7 +1113,7 @@
                     'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.min.js',
                     'https://unpkg.com/monaco-editor@0.47.0/min/vs/loader.min.js',
                     '/monaco/min/vs/loader.js',
-                    '/monoca/min/vs/loader.js'
+                    '/monaco/min/vs/loader.js'
                 ];
                 let idx = 0; let done = false;
                 const tryNext = () => {
@@ -972,12 +1133,12 @@
                 tryNext();
             });
 
-            // 多源回退（CDN -> 本地 monaco/ -> 本地 monoca/）
+            // 多源回退（CDN -> 本地 monaco/）
             const bases = [
                 'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs',
                 'https://unpkg.com/monaco-editor@0.47.0/min/vs',
                 '/monaco/min/vs',
-                '/monoca/min/vs'
+                '/monaco/min/vs'
             ];
 
             const tryLoad = (base) => new Promise((resolve, reject) => {
@@ -1020,6 +1181,8 @@
                 document.body.classList.add('dark-mode');
                 document.documentElement.classList.add('dark-mode');
                 this.monaco.editor.setTheme('vs-dark');
+                const db = document.getElementById('dark-mode-button');
+                if(db){ db.setAttribute('data-tooltip','浅色模式'); db.innerHTML='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>'; }
             } else {
                 document.body.classList.remove('dark-mode');
                 document.documentElement.classList.remove('dark-mode');
@@ -1039,7 +1202,7 @@
             this.completionProvider.register(this.editor.editor);
             // Populate template selector options
             try { this.setupTemplateSelector(document.getElementById('template-selector')); } catch {}
-             // Idle warmup after managers exist
+            // Idle warmup after managers exist
             const idle= window.requestIdleCallback || function(cb){ setTimeout(()=>cb({didTimeout:false,timeRemaining:()=>50}),800)};
             idle(async()=>{ try{ const code=this.editor.getValue(); const pkgs=await this.packageManager.findNewPackages(code); if(pkgs.size>0) await this.packageManager.installPackages(pkgs,true); }catch(e){ console.warn('Idle warmup failed:',e);} });
             this.setupEventListeners();
@@ -1052,12 +1215,9 @@
                     if(typeof pending.ost==='number'){ try{ document.getElementById('output').scrollTop = pending.ost; }catch{} }
                     if(pending.tpl){
                         try{
-                            const sel=document.getElementById('template-selector');
-                            if(sel){
-                                // 仅反映选择，不覆盖已加载的代码
-                                const exists = Array.from(sel.options).some(o=>o.value===pending.tpl);
-                                if(exists) sel.value = pending.tpl;
-                            }
+                            // Use the custom selector's exposed setter to sync both
+                            // native <select> value AND the visual trigger text.
+                            if(self._setTemplateSelectorValue) self._setTemplateSelectorValue(pending.tpl);
                         }catch{}
                     }
                     window.__pendingPermalink = null;
@@ -1067,22 +1227,19 @@
             try{
                 const t = window.__pendingTpl;
                 if(t){
-                    const sel=document.getElementById('template-selector');
-                    if(sel){
-                        const exists = Array.from(sel.options).some(o=>o.value===t);
-                        if(exists) sel.value = t;
-                    }
+                    // Use the custom selector's exposed setter for proper UI sync
+                    if(self._setTemplateSelectorValue) self._setTemplateSelectorValue(t);
                     window.__pendingTpl = null;
                 }
             }catch{}
-            document.getElementById('output').textContent='✅ Python 环境准备就绪！\n💡 提示: 安装/补全/执行都在后台，不会阻塞页面';
+            document.getElementById('output').textContent='Python 环境准备就绪！\n提示: 安装/补全/执行都在后台，不会阻塞页面';
             this.updateLoadingText('加载完成!');
             this.updateProgress('');
             document.body.classList.remove('loading');
             setTimeout(() => document.getElementById('loader-overlay').style.display='none', 300);
         } catch(err) {
             console.error('Initialization failed:',err);
-            document.getElementById('output').textContent=`❌ 加载失败: ${err.message||err.toString()}`;
+            document.getElementById('output').textContent=`加载失败: ${err.message||err.toString()}`;
             document.body.classList.remove('loading');
             document.getElementById('loader-overlay').style.display='none';
         }
@@ -1138,6 +1295,10 @@
                 document.documentElement.classList.toggle('dark-mode', isDark);
                 try { this.monaco && this.monaco.editor.setTheme(isDark? 'vs-dark':'vs'); } catch {}
                 try { StorageManager.setTheme(isDark? 'dark':'light'); } catch {}
+                darkBtn.setAttribute('data-tooltip', isDark ? '浅色模式' : '深色模式');
+                const svgMoon = '<svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+                const svgSun = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+                darkBtn.innerHTML = isDark ? svgSun : svgMoon;
             });
 
             // Help modal
@@ -1183,8 +1344,8 @@
                 if (meta && e.key === 'Enter') { e.preventDefault(); this.runCode(); }
             });
 
-             // Helpers
-             const hexDump = (uint8, max=256) => {
+            // Helpers
+            const hexDump = (uint8, max=256) => {
                 try{
                     if(!uint8) return '';
                     const arr = (uint8.constructor === Uint8Array) ? uint8 : new Uint8Array(uint8);
@@ -1288,19 +1449,19 @@
                     return Math.max(0, this.lineIndex.length - (hasSentinel?1:0));
                 }
                 render(){ if(this._renderPending){ return; } this._renderPending = true; requestAnimationFrame(async ()=>{ this._renderPending=false; if(!this.container) return; const ch = this.container.clientHeight||300; const lh = this.opts.lineHeight; const visible = Math.ceil(ch / lh) + this.opts.overscan; const scrollTop = this.container.scrollTop||0; const start = Math.max(0, Math.floor(scrollTop / lh) - Math.floor(this.opts.overscan/2)); const end = start + visible; await this.ensureIndexed(end+1); let rows = await this.readLines(start, end); // build DOM
-                        // If rendering from top and header exists, drop the first data row to avoid duplicate header
-                        if(this.header && this.header.length && start===0 && rows.length>0){ rows = rows.slice(1); }
-                        const frag = document.createDocumentFragment();
-                        // header row
-                        if(this.header && this.header.length){ const hr = document.createElement('div'); hr.className='csv-row header'; hr.style.gridTemplateColumns = this.gridTemplate; this.header.forEach((v,i)=>{ const c=document.createElement('div'); c.className='csv-cell'; c.textContent = v; hr.appendChild(c); }); frag.appendChild(hr); }
-                        rows.forEach((cols)=>{ const row = document.createElement('div'); row.className='csv-row'; row.style.gridTemplateColumns = this.gridTemplate; for(let i=0;i<this.colCount;i++){ const cell=document.createElement('div'); cell.className='csv-cell'; cell.textContent = String(cols[i]??''); row.appendChild(cell); } frag.appendChild(row); });
-                        // position
-                        const topPad = start * lh + (this.header? lh: 0);
-                        this.rowsHost.innerHTML=''; const padTopDiv = document.createElement('div'); padTopDiv.style.height = topPad + 'px'; this.rowsHost.appendChild(padTopDiv); this.rowsHost.appendChild(frag);
-                        // spacer to set total height
-                        const total = Math.max(this.totalLines * lh + (this.header? lh: 0), ch);
-                        const spacerTail = document.createElement('div'); spacerTail.style.height = Math.max(0, total - (topPad + (rows.length+ (this.header?1:0))*lh)) + 'px'; this.rowsHost.appendChild(spacerTail);
-                    }); }
+                    // If rendering from top and header exists, drop the first data row to avoid duplicate header
+                    if(this.header && this.header.length && start===0 && rows.length>0){ rows = rows.slice(1); }
+                    const frag = document.createDocumentFragment();
+                    // header row
+                    if(this.header && this.header.length){ const hr = document.createElement('div'); hr.className='csv-row header'; hr.style.gridTemplateColumns = this.gridTemplate; this.header.forEach((v,i)=>{ const c=document.createElement('div'); c.className='csv-cell'; c.textContent = v; hr.appendChild(c); }); frag.appendChild(hr); }
+                    rows.forEach((cols)=>{ const row = document.createElement('div'); row.className='csv-row'; row.style.gridTemplateColumns = this.gridTemplate; for(let i=0;i<this.colCount;i++){ const cell=document.createElement('div'); cell.className='csv-cell'; cell.textContent = String(cols[i]??''); row.appendChild(cell); } frag.appendChild(row); });
+                    // position
+                    const topPad = start * lh + (this.header? lh: 0);
+                    this.rowsHost.innerHTML=''; const padTopDiv = document.createElement('div'); padTopDiv.style.height = topPad + 'px'; this.rowsHost.appendChild(padTopDiv); this.rowsHost.appendChild(frag);
+                    // spacer to set total height
+                    const total = Math.max(this.totalLines * lh + (this.header? lh: 0), ch);
+                    const spacerTail = document.createElement('div'); spacerTail.style.height = Math.max(0, total - (topPad + (rows.length+ (this.header?1:0))*lh)) + 'px'; this.rowsHost.appendChild(spacerTail);
+                }); }
                 onScroll(){ this.render(); }
             }
             const layoutPreview = ()=>{
@@ -1322,40 +1483,40 @@
                 }catch{}
             };
 
-             // Preview helpers: create a Monaco read-only editor and update with lightweight rendering
-             const ensurePreviewEditor = () => {
-                 const container = document.getElementById('preview-editor-container');
-                 if (!container) return null;
-                 // Reuse existing editor if available
+            // Preview helpers: create a Monaco read-only editor and update with lightweight rendering
+            const ensurePreviewEditor = () => {
+                const container = document.getElementById('preview-editor-container');
+                if (!container) return null;
+                // Reuse existing editor if available
                 if (container.editor) { container.editor.updateOptions({ readOnly: true }); return container.editor; }
-                 // Create new editor
-                 const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint;
-                 const defaultFont=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop;
-                 const savedFont=StorageManager.getEditorFontSize();
-                 const baseFont = (savedFont && Number.isFinite(savedFont)) ? savedFont : defaultFont;
-                 const baseLine = Math.max(12, Math.round(baseFont * (CONFIG.EDITOR.lineHeightFactor||1.7)));
-                 const editor = this.monaco.editor.create(container, {
-                     value: '',
-                     language: 'python',
-                     theme: document.body.classList.contains('dark-mode') ? 'vs-dark' : 'vs',
-                     automaticLayout: true,
-                     fontFamily: CONFIG.EDITOR.font,
-                     fontSize: baseFont,
-                     lineHeight: baseLine,
-                     minimap: { enabled: false },
-                     wordWrap: 'on',
-                     scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
-                     readOnly: true, // Read-only for preview
-                     quickSuggestions: { other: true, comments: true, strings: true },
-                     suggestOnTriggerCharacters: true,
-                     tabSize: 4,
-                     insertSpaces: true,
-                     mouseWheelZoom: true
-                 });
-                 container.editor = editor;
-                 this.previewEditor = editor;
-                 return editor;
-             };
+                // Create new editor
+                const isMobile=window.innerWidth<=CONFIG.RUNTIME.mobileBreakpoint;
+                const defaultFont=isMobile?CONFIG.EDITOR.fontSize.mobile:CONFIG.EDITOR.fontSize.desktop;
+                const savedFont=StorageManager.getEditorFontSize();
+                const baseFont = (savedFont && Number.isFinite(savedFont)) ? savedFont : defaultFont;
+                const baseLine = Math.max(12, Math.round(baseFont * (CONFIG.EDITOR.lineHeightFactor||1.7)));
+                const editor = this.monaco.editor.create(container, {
+                    value: '',
+                    language: 'python',
+                    theme: document.body.classList.contains('dark-mode') ? 'vs-dark' : 'vs',
+                    automaticLayout: true,
+                    fontFamily: CONFIG.EDITOR.font,
+                    fontSize: baseFont,
+                    lineHeight: baseLine,
+                    minimap: { enabled: false },
+                    wordWrap: 'on',
+                    scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
+                    readOnly: true, // Read-only for preview
+                    quickSuggestions: { other: true, comments: true, strings: true },
+                    suggestOnTriggerCharacters: true,
+                    tabSize: 4,
+                    insertSpaces: true,
+                    mouseWheelZoom: true
+                });
+                container.editor = editor;
+                this.previewEditor = editor;
+                return editor;
+            };
             let csvVirtual = null;
             const updatePreview = (text, path='') => {
                 const ed = ensurePreviewEditor(); if(!ed) return;
@@ -1491,9 +1652,9 @@
                     btn.addEventListener('click', async ()=>{
                         const path = btn.getAttribute('data-path'); if(!path) return;
                         if(!confirm(`确定删除 ${path} ？`)) return;
-                        try{ const r = await this.workerClient.request('delete_file',{ path }); if(!(r&&r.success)) throw new Error(r&&r.error||'删除失败'); Notification.show('🗑️ 已删除','success',1500);
+                        try{ const r = await this.workerClient.request('delete_file',{ path }); if(!(r&&r.success)) throw new Error(r&&r.error||'删除失败'); Notification.show('已删除','success',1500);
                             const listResp=await this.workerClient.request('list_dir',{ path:'/data' }); renderDataList(container, (listResp && (listResp.files||listResp.items)) || []);
-                        }catch(e){ Notification.show('❌ 删除失败：' + (e.message||e),'error'); }
+                        }catch(e){ Notification.show('删除失败：' + (e.message||e),'error'); }
                     });
                 });
             };
@@ -1512,10 +1673,10 @@
 
             // Bind modal buttons
             // Top-level Import Data button mirrors modal upload
-            if(importDataButton){ importDataButton.addEventListener('click',()=>{ const input=document.getElementById('upload-data-input'); if(!input){ Notification.show('⚠️ 上传控件不可用','error'); return; } try{ input.value=''; }catch{} input.click(); }); }
+            if(importDataButton){ importDataButton.addEventListener('click',()=>{ const input=document.getElementById('upload-data-input'); if(!input){ Notification.show('上传控件不可用','error'); return; } try{ input.value=''; }catch{} input.click(); }); }
             if(uploadDataFromModalBtn){ uploadDataFromModalBtn.addEventListener('click',()=>{
                 const input = document.getElementById('upload-data-input');
-                if(!input){ Notification.show('⚠️ 上传控件不可用','error'); return; }
+                if(!input){ Notification.show('上传控件不可用','error'); return; }
                 try{ input.value=''; }catch{}
                 input.click();
             }); }
@@ -1528,7 +1689,7 @@
                 uploadInput.addEventListener('change', async (ev)=>{
                     const files = Array.from(ev.target.files||[]);
                     if(!files.length){ Notification.show('未选择文件','warning',1500); return; }
-                    if(!this.workerClient){ Notification.show('⚠️ 环境未就绪','error'); return; }
+                    if(!this.workerClient){ Notification.show('环境未就绪','error'); return; }
                     Notification.show(`开始上传 ${files.length} 个文件…`,'info',1200);
                     let okCount=0, failCount=0; let lastPath='';
                     for(const file of files){
@@ -1543,7 +1704,7 @@
                     const note = files.length===1 && lastPath ? `（路径：${lastPath}）` : '';
                     Notification.show(`上传完成：成功 ${okCount}，失败 ${failCount} ${note}`.trim(),(failCount?'warning':'success'), 3000);
                     if(files.length===1 && lastPath){
-                        try{ await navigator.clipboard.writeText(lastPath); Notification.show('✅ 已将路径复制到剪贴板','success',1500); }catch{}
+                        try{ await navigator.clipboard.writeText(lastPath); Notification.show('已将路径复制到剪贴板','success',1500); }catch{}
                     }
                     // refresh list if modal open
                     const modal=document.getElementById('data-modal');
@@ -1589,71 +1750,443 @@
                 btn.addEventListener('mouseenter', ()=>choose(btn));
                 btn.addEventListener('focus', ()=>choose(btn));
             });
-            // 监听窗口���化，重新评估
+            // 监听窗口化，重新评估
             window.addEventListener('resize', ()=>{ buttons.forEach(choose); });
         }
-        setupTemplateSelector(selector){ if(!selector) return; selector.innerHTML=''; const def=document.createElement('option'); def.textContent='— 从这里选择一个代码示例 —'; def.value=''; def.selected=true; selector.appendChild(def); if(typeof codeTemplates==='undefined'){ console.warn('codeTemplates is not loaded'); return; } if(!codeTemplates['Pandas (DataFrame)']){ codeTemplates['Pandas (DataFrame)'] = `import pandas as pd
+        setupTemplateSelector(selector){
+            if(!selector) return;
+            const self = this;
+            const wrapper = selector.parentElement;
+            const placeholderText = '— 从这里选择一个代码示例 —';
 
-data = { 'A':[1,2,3], 'B':['x','y','z'] }
+            // ---------- 0. Fully detach the native <select> from interaction ----------
+            // We still keep it in the DOM (as a data source) but the browser must
+            // never render its native dropdown popup, take focus, or appear in a11y tree.
+            // CSS alone isn't enough on some browsers: programmatic focus / dispatchEvent
+            // can still trigger the native popup. So we belt-and-suspenders it.
+            try { selector.setAttribute('tabindex', '-1'); } catch{}
+            try { selector.setAttribute('aria-hidden', 'true'); } catch{}
+            try { selector.setAttribute('aria-label', placeholderText); } catch{}
+            // 'inert' is the modern one-shot: removes from a11y tree + blocks focus + blocks clicks.
+            try { selector.setAttribute('inert', ''); } catch{}
+            // Belt #2: block mousedown / click / keydown at the DOM level, in case a
+            // browser still routes them through (e.g. some Chromium versions on select).
+            const swallow = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
+            ['mousedown','mouseup','click','keydown','keyup','focus','focusin'].forEach(t => {
+                selector.addEventListener(t, swallow, true);
+            });
 
-df = pd.DataFrame(data)
-print(df)
-# 另起一行，输入 'df.' 测试实例补全`; } if(!codeTemplates['Pandas (本地CSV)']){ codeTemplates['Pandas (本地CSV)'] = `import pandas as pd
-# 示例数据已挂载到 /data 目录
-# 首次加载可能稍慢，请耐心等待
+            // ---------- 1. Populate native <select> as data source ----------
+            selector.innerHTML = '';
+            const def = document.createElement('option');
+            def.textContent = placeholderText;
+            def.value = '';
+            def.selected = true;
+            selector.appendChild(def);
 
-df = pd.read_csv('/data/boston_housing.csv')
-print(df.head())
-# 另起一行，输入 'df.' 查看 DataFrame 补全`; } if(!codeTemplates['Matplotlib (pyplot)']){ codeTemplates['Matplotlib (pyplot)'] = `import matplotlib.pyplot as plt
-import numpy as np
+            if(typeof codeTemplates === 'undefined'){ console.warn('codeTemplates is not loaded'); return; }
+            if(!codeTemplates['Pandas (DataFrame)']){
+                codeTemplates['Pandas (DataFrame)'] = `import pandas as pd\n\ndata = { 'A':[1,2,3], 'B':['x','y','z'] }\n\ndf = pd.DataFrame(data)\nprint(df)\n# 另起一行，输入 'df.' 测试实例补全`;
+            }
+            if(!codeTemplates['Pandas (本地CSV)']){
+                codeTemplates['Pandas (本地CSV)'] = `import pandas as pd\n# 示例数据已挂载到 /data 目录\n# 首次加载可能稍慢，请耐心等待\n\ndf = pd.read_csv('/data/boston_housing.csv')\nprint(df.head())\n# 另起一行，输入 'df.' 查看 DataFrame 补全`;
+            }
+            for(const key in codeTemplates){
+                const opt = document.createElement('option');
+                opt.value = key;
+                opt.textContent = key;
+                selector.appendChild(opt);
+            }
 
-x = np.linspace(0, 2*np.pi, 400)
-y = np.sin(x**2)
+            // ---------- 2. Build custom trigger + panel ----------
+            // trigger button (replaces native select visually)
+            const trigger = document.createElement('button');
+            trigger.type = 'button';
+            trigger.className = 'ts-trigger';
+            trigger.setAttribute('aria-haspopup', 'listbox');
+            trigger.setAttribute('aria-expanded', 'false');
+            trigger.setAttribute('aria-label', '选择代码示例');
+            trigger.tabIndex = 0;
 
-plt.figure(figsize=(6,3))
-plt.plot(x, y, label='sin(x^2)')
-plt.title('Demo: Matplotlib in Pyodide')
-plt.legend()
-plt.tight_layout()
-# 不需要 plt.show()，系统会自动捕获图像并显示
-`; }
-            for(const key in codeTemplates){ const opt=document.createElement('option'); opt.value=key; opt.textContent=key; selector.appendChild(opt); } selector.addEventListener('change',(ev)=>{ const k=ev.target.value; if(!k){ this.editor.setValue(''); return; } if(codeTemplates[k]){ this.editor.setValue(codeTemplates[k]); Notification.show(`📚 已加载示例: ${k}`,'success'); try{ const url=new URL(window.location); url.searchParams.set('template',k); url.searchParams.delete('code'); window.history.pushState({},'',url); }catch(e){ console.warn('update URL failed',e);} } }); }
-        async stop(){ if(this.workerClient && this.workerClient.interrupt && this.workerClient.interrupt()){ Notification.show('⏹️ 已请求停止（将触发 KeyboardInterrupt）','warning'); return; } try{ await this.workerClient.restart(); Notification.show('⏹️ 已重启后台以停止任务','warning'); }catch(e){ Notification.show('❌ 停止失败：'+(e.message||e),'error'); } }
+            // dropdown panel
+            const panel = document.createElement('div');
+            panel.className = 'ts-panel';
+            panel.setAttribute('role', 'listbox');
+            panel.tabIndex = -1;
+
+            // search input wrap
+            const searchWrap = document.createElement('div');
+            searchWrap.className = 'ts-search-wrap';
+            const search = document.createElement('input');
+            search.type = 'text';
+            search.className = 'ts-search';
+            search.placeholder = '搜索示例…';
+            search.setAttribute('aria-label', '搜索示例');
+            searchWrap.appendChild(search);
+
+            // options list
+            const optsList = document.createElement('ul');
+            optsList.className = 'ts-options';
+            optsList.setAttribute('role', 'listbox');
+
+            // empty state
+            const empty = document.createElement('div');
+            empty.className = 'ts-empty';
+            empty.textContent = '没有匹配的示例';
+            empty.style.display = 'none';
+
+            // footer (cancel / clear)
+            const footer = document.createElement('div');
+            footer.className = 'ts-footer';
+            const btnCancel = document.createElement('button');
+            btnCancel.type = 'button';
+            btnCancel.textContent = '取消';
+            const btnClear = document.createElement('button');
+            btnClear.type = 'button';
+            btnClear.textContent = '清空选择';
+            footer.appendChild(btnCancel);
+            footer.appendChild(btnClear);
+
+            panel.appendChild(searchWrap);
+            panel.appendChild(optsList);
+            panel.appendChild(empty);
+            panel.appendChild(footer);
+
+            // ---------- 3. Build options array & DOM ----------
+            const templates = Object.keys(codeTemplates).map(k => ({ key: k, code: codeTemplates[k] }));
+            let activeIndex = -1; // highlighted index in current filtered list
+
+            function renderOptions(filterText){
+                optsList.innerHTML = '';
+                const q = (filterText || '').trim().toLowerCase();
+                const filtered = q
+                    ? templates.filter(t => t.key.toLowerCase().includes(q))
+                    : templates;
+
+                if(filtered.length === 0){
+                    empty.style.display = 'block';
+                    activeIndex = -1;
+                    return [];
+                }
+                empty.style.display = 'none';
+                const frag = document.createDocumentFragment();
+                filtered.forEach((t, i) => {
+                    const li = document.createElement('li');
+                    li.className = 'ts-option';
+                    li.setAttribute('role', 'option');
+                    li.dataset.key = t.key;
+                    li.dataset.index = String(i);
+                    if(selector.value === t.key) li.setAttribute('data-selected', 'true');
+                    // highlight matching substring
+                    if(q){
+                        const lower = t.key.toLowerCase();
+                        const pos = lower.indexOf(q);
+                        if(pos >= 0){
+                            li.innerHTML = '';
+                            li.appendChild(document.createTextNode(t.key.slice(0, pos)));
+                            const mark = document.createElement('mark');
+                            mark.textContent = t.key.slice(pos, pos + q.length);
+                            li.appendChild(mark);
+                            li.appendChild(document.createTextNode(t.key.slice(pos + q.length)));
+                        } else {
+                            li.textContent = t.key;
+                        }
+                    } else {
+                        li.textContent = t.key;
+                    }
+                    li.addEventListener('click', (ev) => {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        selectValue(t.key);
+                        closePanel();
+                    });
+                    li.addEventListener('mousemove', () => {
+                        // sync active highlight with hover
+                        Array.from(optsList.children).forEach(c => c.style.background = '');
+                        li.style.background = 'var(--accent-subtle)';
+                        activeIndex = i;
+                    });
+                    frag.appendChild(li);
+                });
+                optsList.appendChild(frag);
+                return filtered;
+            }
+
+            function updateTriggerText(){
+                const v = selector.value;
+                if(!v){
+                    trigger.innerHTML = '';
+                    const span = document.createElement('span');
+                    span.className = 'ts-trigger-placeholder';
+                    span.textContent = placeholderText;
+                    trigger.appendChild(span);
+                } else {
+                    trigger.textContent = v;
+                }
+            }
+
+            // ---------- 4. Open / close ----------
+            let isOpen = false;
+            function openPanel(){
+                if(isOpen) return;
+                isOpen = true;
+                panel.classList.add('open');
+                trigger.setAttribute('data-open', 'true');
+                trigger.setAttribute('aria-expanded', 'true');
+                renderOptions('');
+                search.value = '';
+                // position below trigger
+                activeIndex = -1;
+                // focus search next tick
+                setTimeout(() => { try { search.focus(); } catch{} }, 0);
+            }
+            function closePanel(){
+                if(!isOpen) return;
+                isOpen = false;
+                panel.classList.remove('open');
+                trigger.setAttribute('data-open', 'false');
+                trigger.setAttribute('aria-expanded', 'false');
+                // restore focus to trigger for keyboard users
+                try { trigger.focus(); } catch{}
+            }
+            function togglePanel(){ isOpen ? closePanel() : openPanel(); }
+
+            // ---------- 5. Select value (replicates original change behavior) ----------
+            function selectValue(key){
+                // update native select (so external code reading .value still works)
+                selector.value = key || '';
+                // fire native change event so existing listeners (e.g. editor.onDidChangeModelContent decoupling) keep working
+                try { selector.dispatchEvent(new Event('change', { bubbles: true })); } catch{}
+                updateTriggerText();
+                // mark selected in opts list (re-render with current filter)
+                renderOptions(search.value);
+            }
+
+            // ---------- 6. Wire events ----------
+            trigger.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                togglePanel();
+            });
+            // keyboard: Enter/Space/ArrowDown on trigger opens
+            trigger.addEventListener('keydown', (ev) => {
+                if(ev.key === 'Enter' || ev.key === ' ' || ev.key === 'ArrowDown'){
+                    ev.preventDefault();
+                    if(!isOpen){ openPanel(); }
+                    // focus first option
+                    const first = optsList.querySelector('.ts-option');
+                    if(first) first.focus();
+                } else if(ev.key === 'Escape' && isOpen){
+                    ev.preventDefault();
+                    closePanel();
+                }
+            });
+            // search input
+            search.addEventListener('input', () => {
+                renderOptions(search.value);
+            });
+            search.addEventListener('keydown', (ev) => {
+                if(ev.key === 'ArrowDown'){
+                    ev.preventDefault();
+                    moveActive(1);
+                } else if(ev.key === 'ArrowUp'){
+                    ev.preventDefault();
+                    moveActive(-1);
+                } else if(ev.key === 'Enter'){
+                    ev.preventDefault();
+                    commitActive();
+                } else if(ev.key === 'Escape'){
+                    ev.preventDefault();
+                    closePanel();
+                }
+            });
+            // delegate keydown for options list
+            optsList.addEventListener('keydown', (ev) => {
+                if(ev.key === 'ArrowDown'){ ev.preventDefault(); moveActive(1); }
+                else if(ev.key === 'ArrowUp'){ ev.preventDefault(); moveActive(-1); }
+                else if(ev.key === 'Enter'){ ev.preventDefault(); commitActive(); }
+                else if(ev.key === 'Escape'){ ev.preventDefault(); closePanel(); }
+            });
+            function moveActive(delta){
+                const items = Array.from(optsList.querySelectorAll('.ts-option'));
+                if(items.length === 0) return;
+                let next = activeIndex + delta;
+                if(next < 0) next = items.length - 1;
+                if(next >= items.length) next = 0;
+                activeIndex = next;
+                items.forEach((el, i) => {
+                    el.style.background = (i === activeIndex) ? 'var(--accent-subtle)' : '';
+                });
+                try { items[activeIndex].scrollIntoView({ block: 'nearest' }); } catch{}
+            }
+            function commitActive(){
+                const items = Array.from(optsList.querySelectorAll('.ts-option'));
+                if(activeIndex < 0 || activeIndex >= items.length) return;
+                const k = items[activeIndex].dataset.key;
+                if(k){ selectValue(k); closePanel(); }
+            }
+            // footer buttons
+            btnCancel.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                closePanel();
+            });
+            btnClear.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                selectValue('');
+                closePanel();
+            });
+            // click outside closes
+            const onDocClick = (ev) => {
+                if(!isOpen) return;
+                if(panel.contains(ev.target) || trigger.contains(ev.target)) return;
+                closePanel();
+            };
+            document.addEventListener('click', onDocClick, true);
+            // ESC at document level also closes
+            const onDocKey = (ev) => {
+                if(isOpen && ev.key === 'Escape'){ closePanel(); }
+            };
+            document.addEventListener('keydown', onDocKey);
+            // reposition on scroll/resize so panel stays under trigger
+            const reposition = () => {
+                // panel is absolutely positioned under wrapper; nothing to do unless we go fixed.
+                // Keep hook for future use.
+            };
+            window.addEventListener('resize', reposition);
+            window.addEventListener('scroll', reposition, true);
+
+            // ---------- 7. Mount ----------
+            // insert trigger after label (replacing select visually)
+            wrapper.insertBefore(trigger, selector);
+            // insert panel into wrapper (positioned absolute under trigger)
+            wrapper.appendChild(panel);
+            updateTriggerText();
+
+            // ---------- 8.5 Hook native <select> value setter so external code setting
+            //                  `sel.value = 'xxx'` also syncs the trigger text.
+            try {
+                const proto = Object.getPrototypeOf(selector);
+                const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+                if(desc && desc.set && desc.configurable){
+                    const nativeSet = desc.set;
+                    Object.defineProperty(selector, 'value', {
+                        get(){ return desc.get.call(this); },
+                        set(v){
+                            nativeSet.call(this, v);
+                            try { updateTriggerText(); } catch{}
+                            try {
+                                if(isOpen) renderOptions(search.value);
+                            } catch{}
+                        },
+                        configurable: true,
+                        enumerable: desc.enumerable
+                    });
+                }
+            } catch(e){ /* older browsers: ignore */ }
+
+            // ---------- 8. Native <select> change listener (preserves original behavior) ----------
+            selector.addEventListener('change', (ev) => {
+                const k = ev.target.value;
+                if(!k){ self.editor.setValue(''); return; }
+                if(codeTemplates[k]){
+                    self.editor.setValue(codeTemplates[k]);
+                    Notification.show(`已加载示例: ${k}`, 'success');
+                    try{
+                        const url = new URL(window.location);
+                        url.searchParams.set('template', k);
+                        url.searchParams.delete('code');
+                        window.history.pushState({}, '', url);
+                    } catch(e){ console.warn('update URL failed', e); }
+                }
+                // sync trigger text & selected state in custom list
+                updateTriggerText();
+                if(isOpen) renderOptions(search.value);
+            });
+
+            // expose imperative setter for URL param handling elsewhere in code
+            self._setTemplateSelectorValue = (key) => {
+                // Validate the key exists in templates to avoid stale state
+                const validKey = (key && codeTemplates && codeTemplates[key]) ? key : '';
+                selector.value = validKey;
+                updateTriggerText();
+                // Sync selected state in the dropdown options list too
+                if(typeof renderOptions === 'function') renderOptions(search.value);
+            };
+        }
+        async stop(){ if(this.workerClient && this.workerClient.interrupt && this.workerClient.interrupt()){ Notification.show('已请求停止（将触发 KeyboardInterrupt）','warning'); return; } try{ await this.workerClient.restart(); Notification.show('已重启后台以停止任务','warning'); }catch(e){ Notification.show('停止失败：'+(e.message||e),'error'); } }
         async runCode(){ const runButton=document.getElementById('run-button'); const outputElement=document.getElementById('output'); const execTimeElement=document.getElementById('exec-time'); const status=document.querySelector('.status-indicator'); const jumpError=document.getElementById('jump-error');
-            if(!this.workerClient||!this.editor){ Notification.show('⚠️ 环境未就绪','error'); return; }
+            if(!this.workerClient||!this.editor){ Notification.show('环境未就绪','error'); return; }
             try{ if(this.editor?.editor && this.errorDecorations?.length){ this.errorDecorations=this.editor.editor.deltaDecorations(this.errorDecorations,[]); } this.lastErrorLine=null; jumpError.style.display='none'; if(this.workerClient.interruptView){ Atomics.store(this.workerClient.interruptView,0,0); }
                 // Clear previous error markers to avoid stale highlights
                 try{ const model=this.editor?.editor?.getModel && this.editor.editor.getModel(); if(model && this.monaco?.editor?.setModelMarkers){ this.monaco.editor.setModelMarkers(model,'py',[]); } }catch{}
             }catch{}
-            runButton.disabled=true; runButton.textContent='⏳ 运行中...'; status.className='status-indicator status-running'; outputElement.textContent='🚀 正在执行代码...';
-            try{ const code=this.editor.getValue(); const pkgs=await this.packageManager.findNewPackages(code); if(pkgs.size>0){ outputElement.textContent=`🔔 安装模块: ${Array.from(pkgs).join(', ')}...`; await this.packageManager.installPackages(pkgs,false); }
+            runButton.disabled=true; runButton.textContent='运行中...'; status.className='status-indicator status-running'; outputElement.textContent='正在执行代码...';
+            try{ const code=this.editor.getValue(); const pkgs=await this.packageManager.findNewPackages(code); if(pkgs.size>0){ outputElement.textContent=`安装模块: ${Array.from(pkgs).join(', ')}...`; await this.packageManager.installPackages(pkgs,false); }
                 const result=await this.codeExecutor.execute(code);
-                if(result.success){ status.className='status-indicator status-success';
-                    // 先渲染文本输出
-                    outputElement.textContent=result.output;
-                    // 再渲染图像（若有）
-                    try{
-                        if(Array.isArray(result.images) && result.images.length){
-                            const wrap = document.createElement('div');
-                            wrap.className = 'plot-gallery';
-                            result.images.forEach((src, idx)=>{ const img=new Image(); img.src=src; img.alt = `plot-${idx+1}`; wrap.appendChild(img); });
-                            outputElement.appendChild(document.createTextNode('\n'));
-                            outputElement.appendChild(wrap);
-                        }
-                    }catch{}
-                    execTimeElement.textContent=`✅ 执行完成 (${result.time}s)`;
+                if(result.success){ status.className='status-indicator status-success'; outputElement.textContent=result.output; execTimeElement.textContent=`执行完成 (${result.time}s)`;
                     // Ensure markers are cleared after success
                     try{ const model=this.editor?.editor?.getModel && this.editor.editor.getModel(); if(model && this.monaco?.editor?.setModelMarkers){ this.monaco.editor.setModelMarkers(model,'py',[]); } }catch{}
-                    Notification.show('✅ 代码执行成功','success',2000);
-                } else { status.className='status-indicator status-error'; outputElement.textContent=result.output; execTimeElement.textContent=`❌ 执行失败 (${result.time}s)`; const line=result.line; if(typeof line==='number' && this.editor?.editor){ try{ const m=this.monaco; const col = (result.col && Number.isFinite(result.col)) ? Math.max(1, result.col) : 1; this.editor.editor.revealLineInCenter(line);
+                    Notification.show('代码执行成功','success',2000);
+                } else { status.className='status-indicator status-error'; outputElement.textContent=result.output; execTimeElement.textContent=`执行失败 (${result.time}s)`; const line=result.line; if(typeof line==='number' && this.editor?.editor){ try{ const m=this.monaco; const col = (result.col && Number.isFinite(result.col)) ? Math.max(1, result.col) : 1; this.editor.editor.revealLineInCenter(line);
                     const range = new m.Range(line, col, line, col+1);
                     this.errorDecorations=this.editor.editor.deltaDecorations(this.errorDecorations,[{ range: range, options:{ isWholeLine: !result.col, className:'error-line-decoration', glyphMarginClassName:'error-line-glyph' } }]); this.lastErrorLine=line; jumpError.style.display='inline-block';
                     const model=this.editor.editor.getModel(); m.editor.setModelMarkers(model,'py',[{ startLineNumber: line, startColumn: col, endLineNumber: line, endColumn: Math.max(col,2), message: '运行出错，详见输出区', severity: m.MarkerSeverity.Error }]); }catch(e){ console.warn('Decorations failed:',e);} }
-                    Notification.show('❌ 代码执行出错','error'); }
-            } catch(e){ status.className='status-indicator status-error'; outputElement.textContent=`❌ 执行失败: ${e.message}`; execTimeElement.textContent='❌ 执行中止'; Notification.show(`❌ ${e.message}`,'error'); }
-            finally{ try{ if(this.workerClient.interruptView) Atomics.store(this.workerClient.interruptView,0,0); }catch{} runButton.disabled=false; runButton.textContent='▶️ 运行'; }
+                    Notification.show('代码执行出错','error'); }
+            } catch(e){ status.className='status-indicator status-error'; outputElement.textContent=`执行失败: ${e.message}`; execTimeElement.textContent='执行中止'; Notification.show(`${e.message}`,'error'); }
+            finally{ try{ if(this.workerClient.interruptView) Atomics.store(this.workerClient.interruptView,0,0); }catch{} runButton.disabled=false; runButton.textContent='运行'; }
         }
-        async formatCode(){ Notification.show('💡 代码格式化功能开发中...','info'); }
+        async formatCode(){
+            if(!this.workerClient||!this.editor){ Notification.show('环境未就绪','error'); return; }
+            const code=this.editor.getValue();
+            if(!code.trim()){ Notification.show('代码为空，无需格式化','info'); return; }
+            try{
+                // Try to install black via micropip if not available
+                const findResp=await this.workerClient.request('find_packages',{ code:'import black' });
+                if(findResp&&findResp.success&&findResp.packages&&findResp.packages.includes('black')){
+                    Notification.show('正在安装 black 格式化工具...','info',2000);
+                    await this.workerClient.request('install',{ packages:['black'] });
+                }
+                // Use autopep8 as fallback since black may not work in Pyodide
+                const formatCode=`
+import autopep8
+try:
+    formatted = autopep8.fix_code(_user_code_, options={'max_line_length': 120, 'indent_size': 4})
+    print(formatted)
+except Exception as e:
+    try:
+        import re
+        # Basic formatting: normalize indentation, remove trailing whitespace
+        lines = _user_code_.split('\\n')
+        result = [line.rstrip() for line in lines]
+        print('\\n'.join(result))
+    except:
+        print(_user_code_)
+`;
+                // Try autopep8 first
+                let resp=await this.workerClient.request('execute',{ code:`import autopep8; _result_ = autopep8.fix_code(${JSON.stringify(JSON.stringify(code))}, options={'max_line_length':120,'indent_size':4}); print(_result_)` });
+                if(resp&&resp.success&&resp.output){
+                    const formatted=resp.output.trim();
+                    if(formatted&&formatted!==code){
+                        this.editor.setValue(formatted);
+                        Notification.show('代码已格式化','success',1500);
+                        return;
+                    }
+                }
+                // Fallback: basic Python reformatting via worker
+                resp=await this.workerClient.request('execute',{ code:`import re; lines=${JSON.stringify(JSON.stringify(code))}.split('\\n'); print('\\n'.join(line.rstrip() for line in lines))` });
+                if(resp&&resp.success&&resp.output){
+                    const cleaned=resp.output.trim();
+                    this.editor.setValue(cleaned);
+                    Notification.show('代码已整理（基本格式化）','success',1500);
+                    return;
+                }
+                Notification.show('格式化失败，请手动整理','error');
+            }catch(e){
+                Notification.show('格式化出错：'+(e.message||e),'error');
+            }
+        }
         shareCode(){
             const code=this.editor.getValue();
             // collect settings
@@ -1665,23 +2198,57 @@ plt.tight_layout()
             const efs = EO? Math.round(this.editor?.editor?.getOption(EO.fontSize) || def) : def;
             const ofs = Math.round(parseFloat(getComputedStyle(document.getElementById('output')).fontSize)||15);
             const templateSelector=document.getElementById('template-selector');
-            const tpl = templateSelector ? (templateSelector.value||'') : '';
+            const rawTpl = templateSelector ? (templateSelector.value||'') : '';
+            // Only include tpl if current code exactly matches the template source,
+            // so recipients won't see a stale template label that overwrites
+            // the shared code if they switch templates later.
+            let tpl = undefined;
+            if(rawTpl && typeof codeTemplates !== 'undefined' && codeTemplates[rawTpl]){
+                const tplCode = codeTemplates[rawTpl].trimEnd();
+                if(code.trimEnd() === tplCode) tpl = rawTpl;
+            }
             // Scroll positions at share time
             let est=0, esl=0, ost=0;
             try{ est = Math.round(this.editor?.editor?.getScrollTop()||0); esl = Math.round(this.editor?.editor?.getScrollLeft()||0); }catch{}
             try{ const out=document.getElementById('output'); ost = Math.round(out.scrollTop||0); }catch{}
             const payloadObj = { v:2, c: code, efs, ofs, th: theme, tpl: tpl||undefined, est, esl, ost };
-            let shareUrl = buildShortPermalink(payloadObj);
-            shareUrl = ensureValidShortUrl(shareUrl, payloadObj);
+            // Strategy: try localStorage short-ID first (compact URL, 7-day expiry,
+            // same-browser). Fall back to LZString embedded URL (cross-device, longer).
+            const id = ShareStore.save(payloadObj);
+            let shareUrl, isLocalShare = false;
+            if(id){
+                isLocalShare = true;
+                const baseDir = new URL('./', window.location.href);
+                const hasSWController = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
+                shareUrl = hasSWController
+                    ? new URL('./s/' + id, baseDir).toString()
+                    : new URL('./share.html?p=' + encodeURIComponent(id), baseDir).toString();
+            } else {
+                shareUrl = buildShortPermalink(payloadObj);
+                shareUrl = ensureValidShortUrl(shareUrl, payloadObj);
+            }
             navigator.clipboard.writeText(shareUrl).then(()=>{
                 const modal=document.getElementById('share-modal');
                 const input=document.getElementById('share-url');
                 input.value=shareUrl;
                 const openBtn=document.getElementById('open-share-url-button');
                 if(openBtn){ openBtn.onclick=()=>{ const url=input.value||shareUrl; window.open(url,'_blank'); } }
+                // Show share type / expiry info
+                const infoEl=document.getElementById('share-info');
+                if(infoEl){
+                    if(isLocalShare){
+                        const expiryDate=new Date(Date.now()+ShareStore.EXPIRE_MS);
+                        const dateStr=expiryDate.toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
+                        infoEl.textContent=`有效期至 ${dateStr}（仅限当前浏览器），跨设备请使用下载/复制代码`;
+                        infoEl.style.color='var(--muted)';
+                    } else {
+                        infoEl.textContent='链接永久有效（跨设备可用，URL较长）';
+                        infoEl.style.color='var(--muted)';
+                    }
+                }
                 modal.classList.add('active');
-                Notification.show('✅ 分享链接已复制到剪贴板','success');
-            }).catch(()=>{ Notification.show('❌ 复制失败，请手动复制','error'); });
+                Notification.show('分享链接已复制到剪贴板','success');
+            }).catch(()=>{ Notification.show('复制失败，请手动复制','error'); });
         }
         downloadCode(){
             const code=this.editor.getValue();
@@ -1696,20 +2263,20 @@ plt.tight_layout()
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
             }, 100);
-            Notification.show('✅ 代码已下载','success');
+            Notification.show('代码已下载','success');
         }
         copyOutput(){
             const outputElement=document.getElementById('output');
             const text = outputElement.textContent.trim();
-            if(!text){ Notification.show('⚠️ 输出为空','error'); return; }
+            if(!text){ Notification.show('输出为空','error'); return; }
             navigator.clipboard.writeText(text).then(()=>{
-                Notification.show('✅ 输出已复制到剪贴板','success');
+                Notification.show('输出已复制到剪贴板','success');
             }).catch(()=>{
-                Notification.show('❌ 复制输出失败，请手动复制','error');
+                Notification.show('复制输出失败，请手动复制','error');
             });
         }
-        clearCode(){ if(confirm('确定要清空代码吗？')){ this.editor.setValue(''); StorageManager.saveCode(''); Notification.show('🗑️ 代码已清空','info'); } }
-        clearOutput(){ document.getElementById('output').textContent='清空完成'; document.getElementById('exec-time').textContent='就绪'; Notification.show('🗑️ 输出已清空','info'); }
+        clearCode(){ if(confirm('确定要清空代码吗？')){ this.editor.setValue(''); StorageManager.saveCode(''); Notification.show('代码已清空','info'); } }
+        clearOutput(){ document.getElementById('output').textContent=''; document.getElementById('exec-time').textContent='就绪'; try{ const model=this.editor?.editor?.getModel && this.editor.editor.getModel(); if(model && this.monaco?.editor?.setModelMarkers){ this.monaco.editor.setModelMarkers(model,'py',[]); } this.errorDecorations=this.editor.editor.deltaDecorations(this.errorDecorations||[],[]); this.lastErrorLine=null; document.getElementById('jump-error').style.display='none'; }catch{} document.querySelector('.status-indicator').className='status-indicator status-idle'; }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -1721,38 +2288,41 @@ plt.tight_layout()
         }
 
         const urlParams=new URLSearchParams(window.location.search); let codeLoadedFromUrl=false;
-        // New: decode from /s/<payload> path
+        let payloadPresent=false, payloadDecoded=false;
+        // decode from /s/<payload> path — try localStorage short ID first, then LZString
         try{
             const p = window.location.pathname;
             const idx = p.indexOf('/s/');
             if(idx !== -1){
                 let pay = p.substring(idx + 3);
-                // strip any trailing slash
                 if(pay.endsWith('/')) pay = pay.slice(0,-1);
-                let decodedJson = null;
-                try { decodedJson = window.LZString.decompressFromEncodedURIComponent(pay); } catch{}
-                if(decodedJson){
-                    const obj = JSON.parse(decodedJson);
-                    if(obj && typeof obj.c==='string'){ StorageManager.saveCode(obj.c); codeLoadedFromUrl=true; }
-                    if(obj && obj.efs && Number.isFinite(obj.efs)){ StorageManager.setEditorFontSize(Math.round(obj.efs)); }
-                    if(obj && obj.ofs && Number.isFinite(obj.ofs)){ StorageManager.setOutputFontSize(Math.round(obj.ofs)); try{ const out=document.getElementById('output'); if(out) out.style.fontSize=`${Math.round(obj.ofs)}px`; }catch{} }
-                    if(obj && obj.th && (obj.th==='dark'||obj.th==='light')){ try{ StorageManager.setTheme(obj.th);}catch{} }
-                    // Defer scroll/template to after editor init
-                    window.__pendingPermalink = { est: obj.est, esl: obj.esl, ost: obj.ost, tpl: obj.tpl };
+                if(pay){
+                    payloadPresent = true;
+                    const obj = tryDecodePayload(pay);
+                    if(obj){
+                        payloadDecoded = true;
+                        if(typeof obj.c==='string'){ StorageManager.saveCode(obj.c); codeLoadedFromUrl=true; }
+                        if(obj.efs && Number.isFinite(obj.efs)){ StorageManager.setEditorFontSize(Math.round(obj.efs)); }
+                        if(obj.ofs && Number.isFinite(obj.ofs)){ StorageManager.setOutputFontSize(Math.round(obj.ofs)); try{ const out=document.getElementById('output'); if(out) out.style.fontSize=`${Math.round(obj.ofs)}px`; }catch{} }
+                        if(obj.th && (obj.th==='dark'||obj.th==='light')){ try{ StorageManager.setTheme(obj.th);}catch{} }
+                        window.__pendingPermalink = { est: obj.est, esl: obj.esl, ost: obj.ost, tpl: obj.tpl };
+                    }
                 }
             }
         }catch(e){ console.warn('Failed to parse /s/ payload:',e); }
-        // New: permalink compressed param 'z'
+        // permalink compressed param 'z' — try localStorage short ID first, then LZString
         if(!codeLoadedFromUrl && urlParams.has('z')){
+            payloadPresent = true;
             try{
                 const z=urlParams.get('z');
-                const jsonStr = window.LZString && window.LZString.decompressFromEncodedURIComponent ? window.LZString.decompressFromEncodedURIComponent(z) : null;
-                if(jsonStr){
-                    const obj=JSON.parse(jsonStr);
-                    if(obj && typeof obj.c==='string'){ StorageManager.saveCode(obj.c); codeLoadedFromUrl=true; }
-                    if(obj && obj.efs && Number.isFinite(obj.efs)){ StorageManager.setEditorFontSize(Math.round(obj.efs)); }
-                    if(obj && obj.ofs && Number.isFinite(obj.ofs)){ StorageManager.setOutputFontSize(Math.round(obj.ofs)); try{ const out=document.getElementById('output'); if(out) out.style.fontSize=`${Math.round(obj.ofs)}px`; }catch{} }
-                    if(obj && obj.th && (obj.th==='dark'||obj.th==='light')){ try{ StorageManager.setTheme(obj.th);}catch{} }
+                const obj = tryDecodePayload(z);
+                if(obj){
+                    payloadDecoded = true;
+                    if(typeof obj.c==='string'){ StorageManager.saveCode(obj.c); codeLoadedFromUrl=true; }
+                    if(obj.efs && Number.isFinite(obj.efs)){ StorageManager.setEditorFontSize(Math.round(obj.efs)); }
+                    if(obj.ofs && Number.isFinite(obj.ofs)){ StorageManager.setOutputFontSize(Math.round(obj.ofs)); try{ const out=document.getElementById('output'); if(out) out.style.fontSize=`${Math.round(obj.ofs)}px`; }catch{} }
+                    if(obj.th && (obj.th==='dark'||obj.th==='light')){ try{ StorageManager.setTheme(obj.th);}catch{} }
+                    window.__pendingPermalink = { est: obj.est, esl: obj.esl, ost: obj.ost, tpl: obj.tpl };
                 }
             }catch(e){ console.warn('Failed to parse z param:',e); }
         }
@@ -1771,6 +2341,14 @@ plt.tight_layout()
                 }
             }
         }catch(e){ console.warn('Failed to handle template param:', e); }
+
+        // Purge expired share entries on page load
+        try{ ShareStore.cleanup(); }catch{}
+
+        // If a share payload was present but couldn't be decoded (expired or cross-browser)
+        if(payloadPresent && !payloadDecoded && !codeLoadedFromUrl){
+            setTimeout(()=>{ try{ Notification.show('分享链接已过期或不在当前浏览器中','warning',5000); }catch{} }, 2000);
+        }
 
         // 以 SRI + 回退方式加载 LXGW 字体样式，失败时提示并回退到其他 CDN 或去除 SRI
         (function loadLXGWCss(){
@@ -1792,11 +2370,11 @@ plt.tight_layout()
                     try { document.head.removeChild(link); } catch {}
                     const next = fallbacks.shift();
                     if (next) {
-                        try { Notification.show('⚠️ 字体样式 SRI 校验失败，正在使用备用源','warning', 3500); } catch {}
+                        try { Notification.show('字体样式 SRI 校验失败，正在使用备用源','warning', 3500); } catch {}
                         mount(next);
                     } else if (opt.integrity) {
                         // 最后再尝试去掉 SRI 重新加载
-                        try { Notification.show('⚠️ 所有备用源均不可用，放弃 SRI 继续加载字体','warning', 3500); } catch {}
+                        try { Notification.show('所有备用源均不可用，放弃 SRI 继续加载字体','warning', 3500); } catch {}
                         mount({ href: opt.href });
                     }
                 };
@@ -1815,7 +2393,7 @@ plt.tight_layout()
                 const overlay = document.getElementById('loader-overlay');
                 if (overlay) overlay.style.display = 'none';
                 try {
-                    Notification.show('⚠️ 初始化较慢，已为你显示界面，稍后功能会自动就绪','warning', 4000);
+                    Notification.show('初始化较慢，已为你显示界面，稍后功能会自动就绪','warning', 4000);
                 } catch {}
             }
         }, 6000);

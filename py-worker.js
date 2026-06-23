@@ -14,6 +14,7 @@ const PYODIDE_CONFIG = {
 };
 const stdlibModules = new Set();
 const installed = new Set();
+const warmupCache = new Set();
 let dataMounted = false;
 let dataMountPromise = null;
 const uploadedFiles = new Set();
@@ -328,6 +329,8 @@ async function getCompletions(payload) {
  */
 async function warmupCompletion(moduleName) {
     if (!jediCompletionFn) return;
+    if (warmupCache.has(moduleName)) return; // 跳过已预热模块
+    warmupCache.add(moduleName);
     try {
         const testCode = `import ${moduleName}\n${moduleName}.`;
         await Promise.race([
@@ -433,7 +436,8 @@ async function installPackages(payload) {
             }
         }
 
-        for (const pkg of packages) {
+        // 仅预热本次新增的包（已预热的通过 warmupCache 内部短路）
+        for (const pkg of toInstall) {
             await warmupCompletion(pkg);
         }
 
@@ -514,63 +518,23 @@ async function executeCode(payload) {
         // Second-chance ensure key CSV exists, in case directory listing was blocked
         try { await ensureFilePresent('/data/boston_housing.csv'); } catch {}
 
-        // Prepare stdout/stderr capture
         await pyodide.runPythonAsync(`
 import sys, io
 sys.stdout = io.StringIO()
 sys.stderr = io.StringIO()
         `);
-        // Hint matplotlib backend for headless rendering (best-effort)
-        try { await pyodide.runPythonAsync(`import os; os.environ.setdefault('MPLBACKEND','Agg')`); } catch {}
 
-        // Run user code with timeout
         await Promise.race([pyodide.runPythonAsync(code), timeoutPromise]);
 
         const stdout = pyodide.runPython('sys.stdout.getvalue()');
         const stderr = pyodide.runPython('sys.stderr.getvalue()');
         const executionTime = ((Date.now() - startTime) / 1000).toFixed(3);
 
-        // Collect matplotlib figures (up to 5) as base64 PNG
-        let images = [];
-        try {
-            const imagesJson = await pyodide.runPythonAsync(`
-import json, base64
-imgs=[]
-try:
-    import matplotlib
-    from matplotlib import pyplot as plt
-    from matplotlib._pylab_helpers import Gcf
-    managers = Gcf.get_all_fig_managers()
-    for m in managers[:5]:
-        fig = m.canvas.figure
-        try:
-            import io
-            buf = io.BytesIO()
-            fig.savefig(buf, format='png', bbox_inches='tight')
-            buf.seek(0)
-            b64 = base64.b64encode(buf.read()).decode()
-            imgs.append('data:image/png;base64,'+b64)
-        except Exception as e:
-            pass
-    try:
-        plt.close('all')
-    except Exception:
-        pass
-except Exception:
-    pass
-json.dumps(imgs)
-            `);
-            if (imagesJson) {
-                try { images = JSON.parse(imagesJson) || []; } catch { images = []; }
-            }
-        } catch {}
-
         const output = (stderr && stderr.trim()) || (stdout && stdout.trim()) || '(无输出)';
         return {
             success: true,
             output: output,
-            time: executionTime,
-            images: images && Array.isArray(images) ? images : []
+            time: executionTime
         };
 
     } catch (e) {
@@ -634,7 +598,7 @@ traceback.print_exc(file=sys.stderr)
 
         return {
             success: false,
-            output: `❌ 错误:\n${errorMsg}`,
+            output: `错误:\n${errorMsg}`,
             time: executionTime,
             line: lineNum,
             col: colNum

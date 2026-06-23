@@ -3,22 +3,101 @@
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>跳转中…</title>
-  <meta http-equiv="refresh" content="8; url=/">
-  <style>body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;padding:32px;color:#333;background:#f7f7f7} @media (prefers-color-scheme: dark){body{color:#ddd;background:#1e1e1e}} .box{max-width:600px;margin:0 auto;text-align:center} .muted{color:#666;font-size:14px} @media (prefers-color-scheme: dark){.muted{color:#999}} .site-footer{margin-top:40px;padding:12px 0 10px;font-size:13px;text-align:center;color:#666;border-top:1px solid #d0d0d0;letter-spacing:.5px} @media (prefers-color-scheme: dark){.site-footer{color:#aaa;border-top:1px solid #333}} .site-footer .partner-link{color:#1a73e8;font-weight:600;text-decoration:none;position:relative;padding:0 4px} @media (prefers-color-scheme: dark){.site-footer .partner-link{color:#8ab4f8}} .site-footer .partner-link::after{content:'';position:absolute;left:0;bottom:-3px;width:100%;height:2px;background:linear-gradient(90deg,#66a6ff,#89f7fe);transform:scaleX(0);transform-origin:left;transition:transform .35s ease;border-radius:2px} .site-footer .partner-link:hover::after{transform:scaleX(1)} @media (prefers-color-scheme: dark){.site-footer .partner-link::after{background:linear-gradient(90deg,#4e8df2,#5bd4e5)}} </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="404 - 页面未找到">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="refresh" content="2; url=/">
+  <title>页面未找到 - 枫下代码</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c6dd8'/%3E%3Cstop offset='1' stop-color='%233342b7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Ctext x='32' y='44' font-family='ui-sans-serif,system-ui' font-size='34' font-weight='800' text-anchor='middle' fill='white'%3E%E6%9F%9F%3C/text%3E%3C/svg%3E">
+  <style>
+    :root { color-scheme: light; --bg:#f7f7f7; --fg:#18181b; --muted:#71717a; --border:#e4e4e7; --panel:rgba(255,255,255,0.7); --accent:#3342b7; --accent-2:#7c6dd8; }
+    @media (prefers-color-scheme: dark) {
+      :root { color-scheme: dark; --bg:#0a0a0a; --fg:#fafafa; --muted:#a1a1aa; --border:#27272a; --panel:rgba(24,24,27,0.6); }
+    }
+    *,*::before,*::after { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, Roboto, sans-serif;
+      color: var(--fg);
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px; position: relative; overflow: hidden;
+    }
+    /* 环境光效（与主站一致） */
+    body::before {
+      content: '';
+      position: absolute; inset: -20% -20% auto auto; width: 60vmax; height: 60vmax;
+      background: radial-gradient(circle, rgba(124,109,216,0.18) 0%, transparent 60%);
+      filter: blur(40px); pointer-events: none; z-index: 0;
+      animation: ambient 14s ease-in-out infinite alternate;
+    }
+    @keyframes ambient { from { transform: translate(0,0); } to { transform: translate(-4vmin, 4vmin); } }
+
+    .box {
+      position: relative; z-index: 1;
+      max-width: 480px; width: 100%;
+      background: var(--panel);
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 40px 32px;
+      text-align: center;
+      box-shadow: 0 20px 60px -20px rgba(124,109,216,0.18), 0 0 0 1px var(--border);
+    }
+    .code { font-size: 64px; font-weight: 800; line-height: 1; margin: 0 0 8px;
+      background: linear-gradient(135deg, var(--accent-2), var(--accent));
+      -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: -0.04em;
+    }
+    h1 { margin: 0 0 12px; font-size: 18px; font-weight: 600; color: var(--fg); }
+    p { margin: 6px 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+    a.btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      margin-top: 18px; padding: 10px 22px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #fff; text-decoration: none; border-radius: 10px;
+      font-size: 14px; font-weight: 600;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    a.btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px -6px rgba(124,109,216,0.5); }
+    a.btn:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; }
+
+    .site-footer {
+      margin-top: 32px; padding: 12px 0 10px; font-size: 13px; text-align: center; color: var(--muted);
+      border-top: 1px solid var(--border); letter-spacing: .5px;
+    }
+    .site-footer .partner-link {
+      color: #1a73e8; font-weight: 600; text-decoration: none; position: relative; padding: 0 4px;
+    }
+    @media (prefers-color-scheme: dark){ .site-footer .partner-link { color: #8ab4f8; } }
+    .site-footer .partner-link::after {
+      content:''; position:absolute; left:0; bottom:-3px; width:100%; height:2px;
+      background: linear-gradient(90deg, #66a6ff, #89f7fe);
+      transform: scaleX(0); transform-origin: left; transition: transform .35s ease; border-radius: 2px;
+    }
+    .site-footer .partner-link:hover::after { transform: scaleX(1); }
+  </style>
 </head>
 <body>
-  <div class="box">
-    <h1>页面不见了，正在为你跳转…</h1>
-    <p class="muted">如果没有自动跳转，请<a href="/">点击这里回到首页</a>。</p>
-  </div>
+  <main class="box">
+    <div class="code">404</div>
+    <h1>页面不见了</h1>
+    <p>正在为你跳转回首页…</p>
+    <p style="margin-top: 14px;"><a class="btn" href="/">立即返回首页</a></p>
+  </main>
+  <footer class="site-footer" style="position:fixed;bottom:0;left:0;right:0;margin:0;background:transparent;">
+    本站由 <a class="partner-link" href="https://app.rainyun.com/" target="_blank" rel="noopener noreferrer" title="雨云 - 云服务器与算力服务">雨云</a> 提供计算服务
+  </footer>
   <script>
     (function(){
       try{
         var loc = window.location;
         var path = loc.pathname || '';
-        // Route /s/<payload> to share.html (link builder)
+        // /s/<payload> 路由到 share.html
         var idx = path.indexOf('/s/');
         if(idx !== -1){
           var payload = path.substring(idx + 3);
@@ -27,12 +106,11 @@
           window.location.replace(target);
           return;
         }
-        // Otherwise, go home preserving query if present
+        // 保留 query 参数
         var home = loc.origin + '/' + (loc.search || '');
-        window.location.replace(home);
-      }catch(e){ /* ignore and let meta refresh handle */ }
+        setTimeout(function(){ window.location.replace(home); }, 1200);
+      }catch(e){ /* 交给 meta refresh */ }
     })();
   </script>
-  <footer class="site-footer">本站由 <a class="partner-link" href="https://app.rainyun.com/" target="_blank" rel="noopener noreferrer" title="雨云 - 云服务器与算力服务">雨云</a> 提供计算服务</footer>
 </body>
 </html>

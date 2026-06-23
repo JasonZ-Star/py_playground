@@ -1,0 +1,28 @@
+{
+    "name": "枫下代码 - Python在线 Playground",
+    "short_name": "枫下代码",
+    "description": "基于 Pyodide + Monaco 的纯静态 Python 在线运行环境",
+    "lang": "zh-CN",
+    "dir": "ltr",
+    "start_url": "./",
+    "scope": "./",
+    "display": "standalone",
+    "orientation": "any",
+    "background_color": "#0a0a0a",
+    "theme_color": "#3342b7",
+    "categories": ["developer", "education", "productivity"],
+    "icons": [
+        {
+            "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c6dd8'/%3E%3Cstop offset='1' stop-color='%233342b7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='192' height='192' rx='42' fill='url(%23g)'/%3E%3Ctext x='96' y='132' font-family='ui-sans-serif,system-ui' font-size='110' font-weight='800' text-anchor='middle' fill='white'%3E%E6%9F%9F%3C/text%3E%3C/svg%3E",
+            "sizes": "192x192",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        },
+        {
+            "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c6dd8'/%3E%3Cstop offset='1' stop-color='%233342b7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='112' fill='url(%23g)'/%3E%3Ctext x='256' y='352' font-family='ui-sans-serif,system-ui' font-size='290' font-weight='800' text-anchor='middle' fill='white'%3E%E6%9F%9F%3C/text%3E%3C/svg%3E",
+            "sizes": "512x512",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}

@@ -8,7 +8,9 @@ const CORE_ASSETS = [
     './templates.js',
     './py-worker.js',
     './fonts/local-fonts.css',
-    './share.html'
+    './share.html',
+    './404.html',
+    './site.webmanifest'
 ];
 
 self.addEventListener('install', (event) => {
